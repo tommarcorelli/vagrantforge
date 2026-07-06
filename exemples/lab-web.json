@@ -1,0 +1,30 @@
+{
+  "provider": "virtualbox",
+  "box_check_update": false,
+  "vms": [
+    {
+      "name": "web",
+      "box": "debian/bookworm64",
+      "memory": 1024,
+      "cpus": 1,
+      "ip": "192.168.56.10",
+      "synced_folder": "./web",
+      "ports": [{ "guest": 80, "host": 8080 }],
+      "provision": {
+        "type": "shell",
+        "script": "apt-get update -y\napt-get install -y nginx\nsystemctl enable --now nginx\n"
+      }
+    },
+    {
+      "name": "db",
+      "box": "debian/bookworm64",
+      "memory": 1536,
+      "cpus": 1,
+      "ip": "192.168.56.11",
+      "provision": {
+        "type": "shell",
+        "script": "apt-get update -y\napt-get install -y mariadb-server\nsystemctl enable --now mariadb\n"
+      }
+    }
+  ]
+}

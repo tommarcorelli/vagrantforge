@@ -1,0 +1,9 @@
+# VagrantForge — dépendances Python.
+#
+# Le cœur (core/) et la CLI (cli/) n'utilisent QUE la bibliothèque standard :
+# aucune dépendance requise pour générer/valider un Vagrantfile.
+#
+# Flask n'est nécessaire que pour le serveur web optionnel (web/api/main.py).
+# Le frontend fonctionne aussi 100 % en autonome (ouvrir web/frontend/index.html).
+
+Flask>=3.0

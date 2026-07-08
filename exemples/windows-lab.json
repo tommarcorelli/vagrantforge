@@ -1,0 +1,19 @@
+{
+  "provider": "virtualbox",
+  "box_check_update": false,
+  "vms": [
+    {
+      "name": "win-dc",
+      "box": "gusztavvargadr/windows-server",
+      "memory": 4096,
+      "cpus": 2,
+      "ip": "192.168.56.20",
+      "winrm_username": "vagrant",
+      "winrm_password": "vagrant",
+      "provision": {
+        "type": "shell",
+        "script": "Install-WindowsFeature -Name AD-Domain-Services\n"
+      }
+    }
+  ]
+}

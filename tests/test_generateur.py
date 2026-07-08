@@ -10,9 +10,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.generateur import construire_vagrantfile, nom_variable, echapper
+from core.generateur import construire_vagrantfile, nom_variable, echapper, construire_sections, est_box_windows
 from core.schema import valider_config
 from core.presets import PRESETS, obtenir_preset
+from core.lint import linter_vagrantfile
 
 
 def test_nom_variable_prefixe_les_chiffres():
@@ -109,6 +110,120 @@ def test_tous_les_presets_sont_valides():
         assert erreurs == [], f"Preset « {nom} » invalide : {erreurs}"
         # et il doit se générer sans exploser
         assert construire_vagrantfile(config).strip().endswith("end")
+
+
+def test_catalogue_presets_attendu():
+    # Verrou anti-régression : si un preset disparaît sans le vouloir, ce test le dit.
+    attendus = {"solo", "k3s", "lamp", "devsecops", "pentest",
+                "monitoring", "elk", "wordpress", "gitlab-runner", "nextcloud"}
+    assert attendus <= set(PRESETS)
+
+
+def test_gabarit_par_defaut_identique_a_lhistorique():
+    config = obtenir_preset("solo")
+    assert construire_vagrantfile(config) == construire_vagrantfile(config, gabarit=None)
+
+
+def test_gabarit_personnalise_insere_les_sections():
+    config = obtenir_preset("solo")
+    gabarit = "# Mon en-tête maison\n$ENTETE\n$VMS\n$PIED\n# Généré le $DATE, $NB_VMS VM(s)\n"
+    resultat = construire_vagrantfile(config, gabarit=gabarit)
+    assert resultat.startswith("# Mon en-tête maison\n")
+    assert "Vagrant.configure" in resultat
+    assert resultat.rstrip().endswith("VM(s)")
+
+
+def test_gabarit_variable_inconnue_ne_plante_pas():
+    config = obtenir_preset("solo")
+    resultat = construire_vagrantfile(config, gabarit="$ENTETE $VMS $PIED $CECI_NEXISTE_PAS")
+    assert "$CECI_NEXISTE_PAS" in resultat  # laissé tel quel (safe_substitute)
+
+
+def test_construire_sections_expose_les_metadonnees():
+    config = obtenir_preset("k3s")
+    sections = construire_sections(config)
+    assert sections["NB_VMS"] == "3"
+    assert sections["PROVIDER"] == "virtualbox"
+    assert "k3s-master" in sections["VMS"]
+
+
+def test_lint_valide_tous_les_presets():
+    for nom in PRESETS:
+        contenu = construire_vagrantfile(obtenir_preset(nom))
+        erreurs, _ = linter_vagrantfile(contenu, utiliser_ruby=False)
+        assert erreurs == [], f"Preset « {nom} » : Vagrantfile généré invalide : {erreurs}"
+
+
+def test_lint_detecte_bloc_do_non_ferme():
+    casse = 'Vagrant.configure("2") do |config|\n  config.vm.box = "x"\n'
+    erreurs, _ = linter_vagrantfile(casse, utiliser_ruby=False)
+    assert any("jamais refermé" in e for e in erreurs)
+
+
+def test_lint_detecte_heredoc_non_ferme():
+    casse = 'config.vm.provision "shell", inline: <<-SHELL\n  echo hi\n'
+    erreurs, _ = linter_vagrantfile(casse, utiliser_ruby=False)
+    assert any("heredoc" in e for e in erreurs)
+
+
+def test_lint_ignore_do_end_dans_un_heredoc():
+    # "do" et "end" à l'intérieur d'un heredoc shell ne doivent pas fausser le compte.
+    contenu = (
+        'Vagrant.configure("2") do |config|\n'
+        '  config.vm.provision "shell", inline: <<-SHELL\n'
+        '    for i in 1 2 3; do echo $i; end\n'
+        '  SHELL\n'
+        'end\n'
+    )
+    erreurs, _ = linter_vagrantfile(contenu, utiliser_ruby=False)
+    assert erreurs == []
+
+
+def test_lint_vagrantfile_vide():
+    erreurs, _ = linter_vagrantfile("", utiliser_ruby=False)
+    assert erreurs == ["le Vagrantfile généré est vide."]
+
+
+def test_windows_detecte_par_namespace_de_box():
+    config = obtenir_preset("solo")
+    config["vms"][0]["box"] = "gusztavvargadr/windows-server"
+    config["vms"][0]["winrm_password"] = "vagrant"
+    contenu = construire_vagrantfile(config)
+    assert ".vm.guest = :windows" in contenu
+    assert '.vm.communicator = "winrm"' in contenu
+    assert ".ssh.username" not in contenu
+    erreurs, _ = valider_config(config)
+    assert erreurs == []
+
+
+def test_windows_provisioning_bascule_en_powershell():
+    config = obtenir_preset("solo")
+    config["vms"][0]["box"] = "gusztavvargadr/windows-10"
+    config["vms"][0]["provision"] = {"type": "shell", "script": "Write-Host 'salut'\n"}
+    contenu = construire_vagrantfile(config)
+    assert "#ps1_sysnative" in contenu
+    erreurs, _ = linter_vagrantfile(contenu, utiliser_ruby=False)
+    assert erreurs == []
+
+
+def test_windows_avertit_si_locale_ou_ssh_renseignes():
+    config = obtenir_preset("solo")
+    config["vms"][0]["box"] = "gusztavvargadr/windows-server"
+    config["vms"][0]["locale"] = "fr_FR.UTF-8"
+    config["vms"][0]["ssh_username"] = "vagrant"
+    config["vms"][0]["winrm_password"] = "vagrant"
+    _, avert = valider_config(config)
+    texte = " ".join(avert)
+    assert "locale" in texte and "ignorés" in texte
+    assert "ssh_username" in texte
+
+
+def test_guest_os_explicite_prend_le_pas_sur_le_nom_de_box():
+    # Un box « generic/whatever » forcé en windows via guest_os doit rester détecté.
+    vm = {"box": "generic/whatever", "guest_os": "windows"}
+    assert est_box_windows(vm)
+    vm2 = {"box": "gusztavvargadr/windows-11", "guest_os": "linux"}
+    assert not est_box_windows(vm2)
 
 
 if __name__ == "__main__":

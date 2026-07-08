@@ -107,12 +107,143 @@ def preset_solo(sr="192.168.56"):
     }
 
 
+def preset_monitoring(sr="192.168.56"):
+    """Stack de supervision : Prometheus + Grafana + Node Exporter."""
+    return {
+        "provider": "virtualbox",
+        "box_check_update": False,
+        "vms": [
+            _vm("prometheus", "debian/bookworm64", 1024, 1, sr, 40,
+                ports=[{"guest": 9090, "host": 9090}],
+                script="apt-get update -y\n"
+                       "apt-get install -y prometheus prometheus-node-exporter\n"
+                       "systemctl enable --now prometheus prometheus-node-exporter\n"),
+            _vm("grafana", "debian/bookworm64", 1024, 1, sr, 41,
+                ports=[{"guest": 3000, "host": 3000}],
+                script="apt-get update -y\n"
+                       "apt-get install -y apt-transport-https software-properties-common wget\n"
+                       "wget -q -O /usr/share/keyrings/grafana.key https://apt.grafana.com/gpg.key\n"
+                       "echo 'deb [signed-by=/usr/share/keyrings/grafana.key] "
+                       "https://apt.grafana.com stable main' > /etc/apt/sources.list.d/grafana.list\n"
+                       "apt-get update -y && apt-get install -y grafana\n"
+                       "systemctl enable --now grafana-server\n"
+                       "# Source de données Prometheus à ajouter dans Grafana : http://" + sr + ".40:9090\n"),
+        ],
+    }
+
+
+def preset_elk(sr="192.168.56"):
+    """Stack de logs : Elasticsearch + Logstash + Kibana."""
+    return {
+        "provider": "virtualbox",
+        "box_check_update": False,
+        "vms": [
+            _vm("elasticsearch", "debian/bookworm64", 2560, 2, sr, 50,
+                ports=[{"guest": 9200, "host": 9200}],
+                script="apt-get update -y\n"
+                       "apt-get install -y apt-transport-https gnupg\n"
+                       "wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | gpg --dearmor "
+                       "-o /usr/share/keyrings/elastic.gpg\n"
+                       "echo 'deb [signed-by=/usr/share/keyrings/elastic.gpg] "
+                       "https://artifacts.elastic.co/packages/8.x/apt stable main' "
+                       "> /etc/apt/sources.list.d/elastic-8.x.list\n"
+                       "apt-get update -y && apt-get install -y elasticsearch\n"
+                       "echo 'discovery.type: single-node' >> /etc/elasticsearch/elasticsearch.yml\n"
+                       "echo 'xpack.security.enabled: false'  >> /etc/elasticsearch/elasticsearch.yml\n"
+                       "systemctl enable --now elasticsearch\n"),
+            _vm("kibana", "debian/bookworm64", 1536, 1, sr, 51,
+                ports=[{"guest": 5601, "host": 5601}],
+                script="apt-get update -y\n"
+                       "apt-get install -y apt-transport-https gnupg\n"
+                       "wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | gpg --dearmor "
+                       "-o /usr/share/keyrings/elastic.gpg\n"
+                       "echo 'deb [signed-by=/usr/share/keyrings/elastic.gpg] "
+                       "https://artifacts.elastic.co/packages/8.x/apt stable main' "
+                       "> /etc/apt/sources.list.d/elastic-8.x.list\n"
+                       "apt-get update -y && apt-get install -y kibana\n"
+                       "sed -i 's/#server.host: \"localhost\"/server.host: \"0.0.0.0\"/' "
+                       "/etc/kibana/kibana.yml\n"
+                       "echo 'elasticsearch.hosts: [\"http://" + sr + ".50:9200\"]' "
+                       ">> /etc/kibana/kibana.yml\n"
+                       "systemctl enable --now kibana\n"),
+        ],
+    }
+
+
+def preset_wordpress(sr="192.168.56"):
+    """WordPress + MariaDB sur une seule VM, pour prototyper vite."""
+    return {
+        "provider": "virtualbox",
+        "box_check_update": False,
+        "vms": [
+            _vm("wordpress", "debian/bookworm64", 1536, 1, sr, 60,
+                ports=[{"guest": 80, "host": 8082}],
+                script="apt-get update -y\n"
+                       "apt-get install -y apache2 mariadb-server php php-mysql php-curl php-gd "
+                       "php-mbstring php-xml php-zip\n"
+                       "systemctl enable --now apache2 mariadb\n"
+                       "mysql -e \"CREATE DATABASE wordpress; "
+                       "CREATE USER 'wp'@'localhost' IDENTIFIED BY 'wp';\n"
+                       "GRANT ALL PRIVILEGES ON wordpress.* TO 'wp'@'localhost'; FLUSH PRIVILEGES;\"\n"
+                       "cd /tmp && wget -q https://wordpress.org/latest.tar.gz && tar xzf latest.tar.gz\n"
+                       "cp -r wordpress/* /var/www/html/ && chown -R www-data:www-data /var/www/html\n"
+                       "# wp-config.php à compléter à la première connexion (DB : wordpress/wp/wp)\n"),
+        ],
+    }
+
+
+def preset_gitlab_runner(sr="192.168.56"):
+    """GitLab Runner + Docker, pour exécuter des pipelines CI en dehors du SaaS GitLab."""
+    return {
+        "provider": "virtualbox",
+        "box_check_update": False,
+        "vms": [
+            _vm("gitlab-runner", "debian/bookworm64", 2048, 2, sr, 70,
+                script="apt-get update -y\n"
+                       "apt-get install -y curl ca-certificates\n"
+                       "curl -fsSL https://get.docker.com | sh\n"
+                       "curl -L \"https://gitlab-runner-downloads.s3.amazonaws.com/latest/deb/"
+                       "gitlab-runner_amd64.deb\" -o /tmp/gitlab-runner.deb\n"
+                       "dpkg -i /tmp/gitlab-runner.deb\n"
+                       "# Enregistrement : gitlab-runner register "
+                       "--url <url_gitlab> --registration-token <token>\n"),
+        ],
+    }
+
+
+def preset_nextcloud(sr="192.168.56"):
+    """Nextcloud (stockage/cloud perso) + MariaDB."""
+    return {
+        "provider": "virtualbox",
+        "box_check_update": False,
+        "vms": [
+            _vm("nextcloud", "debian/bookworm64", 2048, 2, sr, 80,
+                ports=[{"guest": 443, "host": 8443}, {"guest": 80, "host": 8083}],
+                script="apt-get update -y\n"
+                       "apt-get install -y apache2 mariadb-server php libapache2-mod-php "
+                       "php-mysql php-gd php-curl php-mbstring php-xml php-zip php-intl\n"
+                       "systemctl enable --now apache2 mariadb\n"
+                       "mysql -e \"CREATE DATABASE nextcloud; "
+                       "CREATE USER 'nc'@'localhost' IDENTIFIED BY 'nc';\n"
+                       "GRANT ALL PRIVILEGES ON nextcloud.* TO 'nc'@'localhost'; FLUSH PRIVILEGES;\"\n"
+                       "cd /tmp && wget -q https://download.nextcloud.com/server/releases/latest.zip\n"
+                       "apt-get install -y unzip && unzip -q latest.zip -d /var/www/\n"
+                       "chown -R www-data:www-data /var/www/nextcloud\n"),
+        ],
+    }
+
+
 PRESETS = {
-    "solo":      ("VM Debian unique", preset_solo),
-    "k3s":       ("Cluster K3s (3 VMs)", preset_k3s),
-    "lamp":      ("LAMP + pfSense", preset_lamp),
-    "devsecops": ("Chaîne CI/CD DevSecOps", preset_devsecops),
-    "pentest":   ("Lab pentest Kali + cible", preset_pentest),
+    "solo":           ("VM Debian unique", preset_solo),
+    "k3s":            ("Cluster K3s (3 VMs)", preset_k3s),
+    "lamp":           ("LAMP + pfSense", preset_lamp),
+    "devsecops":      ("Chaîne CI/CD DevSecOps", preset_devsecops),
+    "pentest":        ("Lab pentest Kali + cible", preset_pentest),
+    "monitoring":     ("Prometheus + Grafana", preset_monitoring),
+    "elk":            ("Elasticsearch + Kibana", preset_elk),
+    "wordpress":      ("WordPress + MariaDB", preset_wordpress),
+    "gitlab-runner":  ("GitLab Runner + Docker", preset_gitlab_runner),
+    "nextcloud":      ("Nextcloud + MariaDB", preset_nextcloud),
 }
 
 

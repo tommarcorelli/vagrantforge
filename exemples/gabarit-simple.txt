@@ -1,0 +1,9 @@
+# ============================================================
+#  Lab généré avec VagrantForge — ne pas éditer à la main
+#  $NB_VMS VM(s) | $RAM_TOTALE Mo RAM | $CPU_TOTAL vCPU | $DATE
+# ============================================================
+
+$ENTETE
+$VMS
+$PIED
+# Fin du fichier — relance « forge generer » pour régénérer.

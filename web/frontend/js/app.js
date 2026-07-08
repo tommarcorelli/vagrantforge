@@ -8,8 +8,8 @@ const $=s=>document.querySelector(s);
 function makeVM(i){
   const id='vm'+Date.now()+Math.floor(Math.random()*1000);
   const nom=i===0?'web':'vm'+(i+1);
-  return {id, name:nom, box:'debian/bookworm64', boxVersion:'', locale:'', keymap:'',
-    sshUsername:'', sshPassword:'', rootPassword:'', memory:2048, cpus:1, ip:'',
+  return {id, name:nom, box:'debian/bookworm64', boxVersion:'', guestOs:'', locale:'', keymap:'',
+    sshUsername:'', sshPassword:'', winrmUsername:'', winrmPassword:'', rootPassword:'', memory:2048, cpus:1, ip:'',
     provider:'', gui:false, publicNetwork:false, syncedFolder:'./'+nom,
     disableSyncedFolder:false, provisionType:'shell', provisionScript:'apt-get update -y\n', ports:[]};
 }
@@ -24,10 +24,11 @@ function rmPort(id,i){ const v=vms.find(v=>v.id===id); v.ports.splice(i,1); rend
 
 function configCourante(){
   return { provider:$('#g-provider').value, box_check_update:$('#g-boxcheck').checked,
-    vms: vms.map(v=>({ name:v.name, box:v.box, box_version:v.boxVersion, memory:parseInt(v.memory)||0,
+    vms: vms.map(v=>({ name:v.name, box:v.box, box_version:v.boxVersion, guest_os:v.guestOs||undefined, memory:parseInt(v.memory)||0,
       cpus:parseInt(v.cpus)||0, ip:v.ip, provider:v.provider, gui:v.gui, public_network:v.publicNetwork,
       locale:v.locale, keymap:v.keymap, synced_folder:v.syncedFolder, disable_synced_folder:v.disableSyncedFolder,
-      ssh_username:v.sshUsername, ssh_password:v.sshPassword, root_password:v.rootPassword,
+      ssh_username:v.sshUsername, ssh_password:v.sshPassword,
+      winrm_username:v.winrmUsername, winrm_password:v.winrmPassword, root_password:v.rootPassword,
       ports:v.ports, provision:{type:v.provisionType, script:v.provisionScript} })) };
 }
 
@@ -90,9 +91,16 @@ function renderForm(nomsErr){
         ${warnBox(v)}
 
         <label>Version de l'image
-          <span class="info" title="Laisse « dernière » pour la plus récente. Fige un numéro pour un lab 100 % reproductible dans le temps.">i</span>
+          <span class="info" title="Laisse « dernière » pour la plus récente. Fige un numéro pour un lab 100 % reproductible dans le temps. Format propre à chaque box (ex: 12.20240905.1 pour Debian) — utilise le bouton pour voir les vraies versions publiées.">i</span>
         </label>
-        <input type="text" data-vm="${v.id}" data-field="boxVersion" value="${v.boxVersion||''}" placeholder="dernière (laisser vide)">
+        <div class="row2">
+          <input type="text" data-vm="${v.id}" data-field="boxVersion" value="${v.boxVersion||''}" placeholder="dernière (laisser vide)" list="dl-${v.id}">
+          <button type="button" class="btn-secondaire" data-versions="${v.id}">🔎 Versions dispo</button>
+        </div>
+        <datalist id="dl-${v.id}"></datalist>
+        <div class="versions-statut" data-versions-statut="${v.id}">
+          <a href="https://vagrantcloud.com/${v.box}" target="_blank" rel="noopener">Voir les versions sur Vagrant Cloud ↗</a>
+        </div>
 
         <div class="row2">
           <div><label>Mémoire vive (RAM)</label>
@@ -107,10 +115,14 @@ function renderForm(nomsErr){
           </div>
         </div>
 
+        ${estBoxWindows(v) ? `
+        <div class="notice-windows" style="margin:8px 0;padding:10px 12px;border-radius:13px;font-size:.85em;">
+          🪟 Box Windows détectée — pilotage en <b>WinRM</b> (pas de SSH), provisioning en <b>PowerShell</b>.
+        </div>` : `
         <label>Langue & clavier de la VM
           <span class="info" title="Règle la langue du système et la disposition du clavier au premier démarrage (familles Debian/Ubuntu). Pratique pour un clavier AZERTY.">i</span>
         </label>
-        <select data-vm="${v.id}" data-field="locale">${optionsLocale(v)}</select>
+        <select data-vm="${v.id}" data-field="locale">${optionsLocale(v)}</select>`}
 
         <label>IP privée (réseau host-only)
           <span class="info" title="Adresse fixe pour joindre la VM depuis ton PC et entre VMs, sur un réseau isolé. Laisse vide pour une IP automatique.">i</span>
@@ -137,6 +149,15 @@ function renderForm(nomsErr){
         <div class="checkbox-row"><input type="checkbox" data-vm="${v.id}" data-field="disableSyncedFolder" ${v.disableSyncedFolder?'checked':''}>
           <label>Désactiver le dossier partagé (contourne un bug du plugin VMware récent)</label></div>
 
+        ${estBoxWindows(v) ? `
+        <div class="row2">
+          <div><label>WinRM — utilisateur</label>
+            <input type="text" data-vm="${v.id}" data-field="winrmUsername" value="${v.winrmUsername||''}" placeholder="vagrant"></div>
+          <div><label>WinRM — mot de passe</label>
+            <input type="text" data-vm="${v.id}" data-field="winrmPassword" value="${v.winrmPassword||''}" placeholder="vagrant"></div>
+        </div>
+        <label>Mot de passe Administrator</label>
+        <input type="text" data-vm="${v.id}" data-field="rootPassword" value="${v.rootPassword||''}" placeholder="vide = inchangé">` : `
         <div class="row2">
           <div><label>SSH — utilisateur</label>
             <input type="text" data-vm="${v.id}" data-field="sshUsername" value="${v.sshUsername||''}" placeholder="vagrant"></div>
@@ -144,7 +165,7 @@ function renderForm(nomsErr){
             <input type="text" data-vm="${v.id}" data-field="sshPassword" value="${v.sshPassword||''}" placeholder="clé par défaut"></div>
         </div>
         <label>Mot de passe root (login console/GUI)</label>
-        <input type="text" data-vm="${v.id}" data-field="rootPassword" value="${v.rootPassword||''}" placeholder="vide = inchangé">
+        <input type="text" data-vm="${v.id}" data-field="rootPassword" value="${v.rootPassword||''}" placeholder="vide = inchangé">`}
 
         <label>Ports redirigés (VM → PC)
           <span class="info" title="Rend un service de la VM accessible depuis ton PC. Ex. guest 80 → host 8080 : http://localhost:8080 ouvre le port 80 de la VM.">i</span>
@@ -187,6 +208,42 @@ function cabler(list){
   list.querySelectorAll('[data-action="dup"]').forEach(el=>el.addEventListener('click',()=>dupVM(el.getAttribute('data-vm'))));
   list.querySelectorAll('[data-action="addport"]').forEach(el=>el.addEventListener('click',()=>addPort(el.getAttribute('data-vm'))));
   list.querySelectorAll('[data-action="rmport"]').forEach(el=>el.addEventListener('click',()=>rmPort(el.getAttribute('data-vm'),parseInt(el.getAttribute('data-idx')))));
+  list.querySelectorAll('[data-versions]').forEach(el=>el.addEventListener('click',()=>chargerVersions(el.getAttribute('data-versions'))));
+}
+
+async function chargerVersions(id){
+  const v=vms.find(v=>v.id===id); if(!v||!v.box) return;
+  const statutEl=document.querySelector(`[data-versions-statut="${id}"]`);
+  const dlEl=document.querySelector(`#dl-${id}`);
+  const box=v.box;
+  const urlCloud=`https://vagrantcloud.com/${box}`;
+  if(statutEl) statutEl.textContent='Recherche sur Vagrant Cloud…';
+
+  const appliquer=(versions)=>{
+    if(dlEl) dlEl.innerHTML=versions.map(ver=>`<option value="${ver}">`).join('');
+    if(statutEl) statutEl.innerHTML=`${versions.length} version(s) trouvée(s) — ouvre le champ pour les voir. <a href="${urlCloud}" target="_blank" rel="noopener">Voir sur Vagrant Cloud ↗</a>`;
+  };
+
+  // 1) Tentative directe navigateur → Vagrant Cloud (aucun serveur requis).
+  try{
+    const r=await fetch(`https://app.vagrantup.com/api/v1/box/${encodeURIComponent(box)}`);
+    if(r.ok){
+      const data=await r.json();
+      const versions=(data.versions||[]).map(x=>x.version).filter(Boolean).slice(0,15);
+      if(versions.length){ appliquer(versions); return; }
+    }
+  }catch(e){ /* CORS, hors-ligne, ou autre — on retente via l'API locale si dispo */ }
+
+  // 2) Si un serveur local tourne (python web/api/main.py), il peut relayer
+  //    la requête côté serveur (pas soumis au CORS du navigateur).
+  try{
+    const r2=await fetch(`/api/box-versions?box=${encodeURIComponent(box)}`);
+    const data2=await r2.json();
+    if(data2.versions && data2.versions.length){ appliquer(data2.versions); return; }
+  }catch(e){ /* pas de serveur local — normal en mode autonome */ }
+
+  // 3) Repli garanti : le lien direct vers la page Vagrant Cloud (marche toujours).
+  if(statutEl) statutEl.innerHTML=`Recherche directe indisponible (hors-ligne ou CORS). <a href="${urlCloud}" target="_blank" rel="noopener">Voir les versions sur Vagrant Cloud ↗</a>`;
 }
 
 function onField(e){
@@ -236,7 +293,7 @@ function restaurer(){ try{ const d=JSON.parse(localStorage.getItem(CLE)); if(!d|
 
 function telecharger(blob,nom){ const u=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=u; a.download=nom; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(u); }
 function exporter(){ telecharger(new Blob([JSON.stringify(configCourante(),null,2)],{type:'application/json'}),'vagrantforge.config.json'); }
-function importer(f){ const r=new FileReader(); r.onload=()=>{ try{ const c=JSON.parse(r.result); $('#g-provider').value=c.provider||'virtualbox'; $('#g-boxcheck').checked=!!c.box_check_update; vms=(c.vms||[]).map((x,i)=>{ const v=makeVM(i); Object.assign(v,{name:x.name??v.name,box:x.box??v.box,boxVersion:x.box_version??'',memory:x.memory??2048,cpus:x.cpus??1,ip:x.ip??'',provider:x.provider??'',gui:!!x.gui,publicNetwork:!!x.public_network,locale:x.locale??'',keymap:x.keymap??'',syncedFolder:x.synced_folder??('./'+(x.name||'vm')),disableSyncedFolder:!!x.disable_synced_folder,sshUsername:x.ssh_username??'',sshPassword:x.ssh_password??'',rootPassword:x.root_password??'',ports:x.ports??[],provisionType:(x.provision&&x.provision.type)||'none',provisionScript:(x.provision&&x.provision.script)||''}); openStates[v.id]=i===0; return v; }); rendre(); }catch(e){ alert('JSON invalide : '+e.message); } }; r.readAsText(f); }
+function importer(f){ const r=new FileReader(); r.onload=()=>{ try{ const c=JSON.parse(r.result); $('#g-provider').value=c.provider||'virtualbox'; $('#g-boxcheck').checked=!!c.box_check_update; vms=(c.vms||[]).map((x,i)=>{ const v=makeVM(i); Object.assign(v,{name:x.name??v.name,box:x.box??v.box,boxVersion:x.box_version??'',guestOs:x.guest_os??'',memory:x.memory??2048,cpus:x.cpus??1,ip:x.ip??'',provider:x.provider??'',gui:!!x.gui,publicNetwork:!!x.public_network,locale:x.locale??'',keymap:x.keymap??'',syncedFolder:x.synced_folder??('./'+(x.name||'vm')),disableSyncedFolder:!!x.disable_synced_folder,sshUsername:x.ssh_username??'',sshPassword:x.ssh_password??'',winrmUsername:x.winrm_username??'',winrmPassword:x.winrm_password??'',rootPassword:x.root_password??'',ports:x.ports??[],provisionType:(x.provision&&x.provision.type)||'none',provisionScript:(x.provision&&x.provision.script)||''}); openStates[v.id]=i===0; return v; }); rendre(); }catch(e){ alert('JSON invalide : '+e.message); } }; r.readAsText(f); }
 
 function rendre(){ renderForm(); renderOutput(); sauver(); }
 
@@ -244,8 +301,16 @@ function ouvrirAide(){ $('#overlay').classList.add('open'); }
 function fermerAide(){ $('#overlay').classList.remove('open'); }
 
 function init(){
-  const ICP={solo:'🖥️',k3s:'☸️',lamp:'🌐',devsecops:'🔧',pentest:'🛡️'};
-  $('#presets-grid').innerHTML=Object.entries(PRESETS).map(([k,p])=>`<button class="preset-card" data-preset="${k}"><span class="t">${ICP[k]||'📦'} ${p.t}</span><span class="d">${p.d}</span></button>`).join('');
+  const ICP={
+    solo:['fa-server','ic-blue'], k3s:['fa-diagram-project','ic-cyan'],
+    lamp:['fa-globe','ic-green'], devsecops:['fa-shield-halved','ic-amber'],
+    pentest:['fa-user-secret','ic-red'], monitoring:['fa-chart-line','ic-cyan'],
+    elk:['fa-magnifying-glass-chart','ic-amber'], wordpress:['fa-wordpress','ic-blue'],
+    'gitlab-runner':['fa-gitlab','ic-amber'], nextcloud:['fa-cloud','ic-green']};
+  $('#presets-grid').innerHTML=Object.entries(PRESETS).map(([k,p])=>{
+    const [ic,cls]=ICP[k]||['fa-box','ic-violet'];
+    return `<button class="preset-card" data-preset="${k}" data-testid="preset-${k}-btn"><span class="preset-ic ${cls}"><i class="fa-solid ${ic}"></i></span><span class="preset-txt"><span class="t">${p.t}</span><span class="d">${p.d}</span></span></button>`;
+  }).join('');
   document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click',()=>loadPreset(b.getAttribute('data-preset'))));
   $('#add-vm').addEventListener('click',addVM);
   $('#g-provider').addEventListener('change',rendre);

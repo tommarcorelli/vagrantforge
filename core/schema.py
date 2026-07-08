@@ -7,37 +7,55 @@
 
 import re
 
-from .generateur import PROVIDERS_CONNUS
+from .generateur import PROVIDERS_CONNUS, est_box_windows
 
 # Compatibilité connue box <-> providers Vagrant Cloud.
 # Basé sur les providers réellement publiés pour chaque box (app.vagrantup.com).
+# Cette table est figée à la main et peut se périmer : lance
+# « forge verifier-box » (core/verif_box.py) de temps en temps pour la
+# comparer à Vagrant Cloud.
 # 'generic/*' (roboxes) et 'bento/*' (Chef Bento) supportent plusieurs providers,
 # dont vmware_desktop — contrairement aux box officielles debian/* et ubuntu/*.
 BOX_PROVIDERS = {
     "debian/bookworm64":         ["virtualbox", "libvirt", "hyperv", "qemu"],
     "debian/bullseye64":         ["virtualbox", "libvirt", "hyperv", "qemu"],
+    "debian/buster64":           ["virtualbox", "libvirt", "hyperv", "qemu"],
     "debian/testing64":          ["virtualbox", "libvirt", "hyperv", "qemu"],
     "ubuntu/noble64":            ["virtualbox", "libvirt", "hyperv"],
     "ubuntu/jammy64":            ["virtualbox", "libvirt", "hyperv"],
     "ubuntu/focal64":            ["virtualbox", "libvirt", "hyperv"],
+    "ubuntu/bionic64":           ["virtualbox", "libvirt", "hyperv"],
     "bento/debian-12":           ["virtualbox", "vmware_desktop", "parallels"],
     "bento/debian-11":           ["virtualbox", "vmware_desktop", "parallels"],
+    "bento/debian-10":           ["virtualbox", "vmware_desktop", "parallels"],
     "bento/ubuntu-24.04":        ["virtualbox", "vmware_desktop", "parallels"],
     "bento/ubuntu-22.04":        ["virtualbox", "vmware_desktop", "parallels"],
+    "bento/ubuntu-20.04":        ["virtualbox", "vmware_desktop", "parallels"],
     "bento/centos-stream-9":     ["virtualbox", "vmware_desktop", "parallels"],
+    "bento/centos-stream-8":     ["virtualbox", "vmware_desktop", "parallels"],
+    "bento/fedora-39":           ["virtualbox", "vmware_desktop", "parallels"],
     "generic/rocky9":            ["virtualbox", "vmware_desktop", "libvirt", "hyperv", "parallels"],
     "generic/rocky8":            ["virtualbox", "vmware_desktop", "libvirt", "hyperv", "parallels"],
     "generic/alma9":             ["virtualbox", "vmware_desktop", "libvirt", "hyperv", "parallels"],
     "generic/alma8":             ["virtualbox", "vmware_desktop", "libvirt", "hyperv", "parallels"],
+    "generic/fedora39":          ["virtualbox", "vmware_desktop", "libvirt", "hyperv", "parallels"],
+    "generic/fedora38":          ["virtualbox", "vmware_desktop", "libvirt", "hyperv", "parallels"],
+    "generic/oracle9":           ["virtualbox", "vmware_desktop", "libvirt", "hyperv", "parallels"],
+    "generic/oracle8":           ["virtualbox", "vmware_desktop", "libvirt", "hyperv", "parallels"],
     "generic/debian12":          ["virtualbox", "vmware_desktop", "libvirt", "hyperv", "parallels"],
     "generic/debian11":          ["virtualbox", "vmware_desktop", "libvirt", "hyperv", "parallels"],
     "generic/ubuntu2204":        ["virtualbox", "vmware_desktop", "libvirt", "hyperv", "parallels"],
     "generic/freebsd14":         ["virtualbox", "vmware_desktop", "libvirt", "hyperv", "parallels"],
     "generic/freebsd13":         ["virtualbox", "vmware_desktop", "libvirt", "hyperv", "parallels"],
     "generic/alpine319":         ["virtualbox", "vmware_desktop", "libvirt", "hyperv", "parallels"],
+    "generic/alpine318":         ["virtualbox", "vmware_desktop", "libvirt", "hyperv", "parallels"],
     "kalilinux/rolling":         ["virtualbox", "vmware_desktop"],
     "archlinux/archlinux":       ["virtualbox", "libvirt", "hyperv", "vmware_desktop"],
     "opensuse/Leap-15.5.x86_64": ["virtualbox", "libvirt", "hyperv"],
+    "opensuse/Leap-15.4.x86_64": ["virtualbox", "libvirt", "hyperv"],
+    "gusztavvargadr/windows-10":     ["virtualbox", "hyperv", "vmware_desktop"],
+    "gusztavvargadr/windows-11":     ["virtualbox", "hyperv", "vmware_desktop"],
+    "gusztavvargadr/windows-server": ["virtualbox", "hyperv", "vmware_desktop"],
 }
 
 REGEX_NOM = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]*$")
@@ -185,13 +203,36 @@ def valider_config(config):
             if type_prov == "ansible" and not provision.get("script"):
                 erreurs.append(f"{ou} ({nom}) : provisioning ansible sans chemin de playbook.")
 
-        if vm.get("ssh_password") or vm.get("root_password"):
+        if vm.get("ssh_password") or vm.get("root_password") or vm.get("winrm_password"):
             avertissements.append(
                 f"{nom} : mot de passe en clair dans la config — OK pour un lab jetable, "
                 "à proscrire ailleurs."
             )
 
-    if total_ram > 16384:
+        if est_box_windows(vm):
+            if vm.get("locale") or vm.get("keymap"):
+                avertissements.append(
+                    f"{nom} : « locale »/« keymap » sont ignorés sur un invité Windows "
+                    "(provisioning PowerShell, pas de locale-gen)."
+                )
+            if vm.get("ssh_username") or vm.get("ssh_password"):
+                avertissements.append(
+                    f"{nom} : « ssh_username »/« ssh_password » sont ignorés sur un invité "
+                    "Windows — utilise « winrm_username »/« winrm_password »."
+                )
+            if not vm.get("winrm_password"):
+                avertissements.append(
+                    f"{nom} : invité Windows sans « winrm_password » — Vagrant utilisera "
+                    "les identifiants par défaut de la box (souvent vagrant/vagrant)."
+                )
+            provision = vm.get("provision") or {}
+            if isinstance(provision, dict) and provision.get("type") == "ansible":
+                avertissements.append(
+                    f"{nom} : provisioning Ansible sur un invité Windows nécessite WinRM "
+                    "côté contrôleur Ansible (voir la doc Ansible « Windows support »)."
+                )
+
+    if total_ram > 32768:
         avertissements.append(
             f"RAM totale du lab : {total_ram} Mo — vérifie que la machine hôte encaisse."
         )

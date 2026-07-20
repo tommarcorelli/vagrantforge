@@ -1,0 +1,46 @@
+name: Déployer sur GitHub Pages
+
+# Publie le contenu de web/frontend/ (l'appli 100 % statique, sans backend)
+# sur GitHub Pages à chaque push sur la branche par défaut.
+#
+# Réglage requis une seule fois, côté dépôt GitHub :
+#   Settings → Pages → Build and deployment → Source : "GitHub Actions"
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "web/frontend/**"
+      - ".github/workflows/deploy-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploiement:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploiement.outputs.page_url }}
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+
+      - name: S'assurer que .nojekyll est présent
+        run: touch web/frontend/.nojekyll
+
+      - name: Préparer les fichiers pour Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/frontend
+
+      - name: Déployer
+        id: deploiement
+        uses: actions/deploy-pages@v4

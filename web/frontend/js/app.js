@@ -11,7 +11,7 @@ function makeVM(i){
   return {id, name:nom, box:'debian/bookworm64', boxVersion:'', guestOs:'', locale:'', keymap:'',
     sshUsername:'', sshPassword:'', winrmUsername:'', winrmPassword:'', rootPassword:'', memory:2048, cpus:1, ip:'',
     provider:'', gui:false, publicNetwork:false, syncedFolder:'./'+nom,
-    disableSyncedFolder:false, provisionType:'shell', provisionScript:'apt-get update -y\n', ports:[]};
+    disableSyncedFolder:false, provisionType:'shell', provisionScript:'apt-get update -y\n', ports:[], extraDisks:[]};
 }
 function sousReseau(){ return $('#g-subnet').value.trim()||'192.168.56'; }
 function nextIP(){ const sr=sousReseau(); const u=vms.map(v=>v.ip).filter(Boolean); let n=10; while(u.includes(sr+'.'+n)) n++; return sr+'.'+n; }
@@ -21,6 +21,8 @@ function removeVM(id){ vms=vms.filter(v=>v.id!==id); rendre(); }
 function dupVM(id){ const s=vms.find(v=>v.id===id); if(!s) return; const c=JSON.parse(JSON.stringify(s)); c.id='vm'+Date.now()+Math.floor(Math.random()*1000); c.name=s.name+'-copie'; c.ip=nextIP(); c.syncedFolder='./'+c.name; vms.splice(vms.findIndex(v=>v.id===id)+1,0,c); openStates[c.id]=true; rendre(); }
 function addPort(id){ const v=vms.find(v=>v.id===id); v.ports.push({guest:80,host:8080+v.ports.length}); rendre(); }
 function rmPort(id,i){ const v=vms.find(v=>v.id===id); v.ports.splice(i,1); rendre(); }
+function addDisk(id){ const v=vms.find(v=>v.id===id); v.extraDisks.push({name:'data'+(v.extraDisks.length+1), sizeGb:10}); rendre(); }
+function rmDisk(id,i){ const v=vms.find(v=>v.id===id); v.extraDisks.splice(i,1); rendre(); }
 
 function configCourante(){
   return { provider:$('#g-provider').value, box_check_update:$('#g-boxcheck').checked,
@@ -29,7 +31,8 @@ function configCourante(){
       locale:v.locale, keymap:v.keymap, synced_folder:v.syncedFolder, disable_synced_folder:v.disableSyncedFolder,
       ssh_username:v.sshUsername, ssh_password:v.sshPassword,
       winrm_username:v.winrmUsername, winrm_password:v.winrmPassword, root_password:v.rootPassword,
-      ports:v.ports, provision:{type:v.provisionType, script:v.provisionScript} })) };
+      ports:v.ports, extra_disks:(v.extraDisks||[]).map(d=>({name:d.name, size_gb:parseInt(d.sizeGb)||0})),
+      provision:{type:v.provisionType, script:v.provisionScript} })) };
 }
 
 function optionsBox(v){
@@ -70,6 +73,12 @@ function renderForm(nomsErr){
         <input type="number" data-vm="${v.id}" data-field="port-host" data-idx="${i}" value="${p.host}" placeholder="PC (host)">
         <span class="rm" data-vm="${v.id}" data-idx="${i}" data-action="rmport">✕</span>
       </div>`).join('');
+    const disques=(v.extraDisks||[]).map((d,i)=>`
+      <div class="port-row">
+        <input type="text" data-vm="${v.id}" data-field="disk-name" data-idx="${i}" value="${d.name||''}" placeholder="nom (ex: data)">
+        <input type="number" data-vm="${v.id}" data-field="disk-size" data-idx="${i}" value="${d.sizeGb||10}" min="1" placeholder="Go">
+        <span class="rm" data-vm="${v.id}" data-idx="${i}" data-action="rmdisk">✕</span>
+      </div>`).join('');
 
     return `
     <div class="vm-card${openStates[v.id]?' open':''}">
@@ -80,18 +89,18 @@ function renderForm(nomsErr){
         <span class="toggle">▸</span>
       </div>
       <div class="vm-card-body">
-        <label>Nom de la VM</label>
+        <label>${t('vm.nom')}</label>
         <input type="text" data-vm="${v.id}" data-field="name" value="${v.name}">
 
-        <label>Système d'exploitation (OS)
-          <span class="info" title="L'image de départ de la VM. Choisis par son nom : « Debian 12 » = la version stable actuelle. Les images bento marchent aussi sous VMware.">i</span>
+        <label>${t('vm.os')}
+          <span class="info" title="${t('vm.os.tip')}">i</span>
         </label>
         <select data-vm="${v.id}" data-field="box">${optionsBox(v)}</select>
         ${boxAutre?`<input type="text" data-vm="${v.id}" data-field="boxManuel" value="${v.box}" placeholder="ex: monorg/ma-box" style="margin-top:6px;">`:''}
         ${warnBox(v)}
 
-        <label>Version de l'image
-          <span class="info" title="Laisse « dernière » pour la plus récente. Fige un numéro pour un lab 100 % reproductible dans le temps. Format propre à chaque box (ex: 12.20240905.1 pour Debian) — utilise le bouton pour voir les vraies versions publiées.">i</span>
+        <label>${t('vm.version')}
+          <span class="info" title="${t('vm.version.tip')}">i</span>
         </label>
         <div class="row2">
           <input type="text" data-vm="${v.id}" data-field="boxVersion" value="${v.boxVersion||''}" placeholder="dernière (laisser vide)" list="dl-${v.id}">
@@ -103,14 +112,14 @@ function renderForm(nomsErr){
         </div>
 
         <div class="row2">
-          <div><label>Mémoire vive (RAM)</label>
+          <div><label>${t('vm.ram')}</label>
             <select data-vm="${v.id}" data-field="memory">
               ${optionsSimple(RAM_NIVEAUX, v.memory)}
               <option value="__custom__" ${ramCustom(v)?'selected':''}>Personnalisé…</option>
             </select>
             ${ramCustom(v)?`<input type="number" data-vm="${v.id}" data-field="memoryCustom" value="${v.memory}" style="margin-top:6px;" placeholder="Mo">`:''}
           </div>
-          <div><label>Processeurs (vCPU)</label>
+          <div><label>${t('vm.cpu')}</label>
             <select data-vm="${v.id}" data-field="cpus">${optionsSimple(CPU_NIVEAUX, v.cpus)}</select>
           </div>
         </div>
@@ -119,17 +128,17 @@ function renderForm(nomsErr){
         <div class="notice-windows" style="margin:8px 0;padding:10px 12px;border-radius:13px;font-size:.85em;">
           🪟 Box Windows détectée — pilotage en <b>WinRM</b> (pas de SSH), provisioning en <b>PowerShell</b>.
         </div>` : `
-        <label>Langue & clavier de la VM
-          <span class="info" title="Règle la langue du système et la disposition du clavier au premier démarrage (familles Debian/Ubuntu). Pratique pour un clavier AZERTY.">i</span>
+        <label>${t('vm.langue')}
+          <span class="info" title="${t('vm.langue.tip')}">i</span>
         </label>
         <select data-vm="${v.id}" data-field="locale">${optionsLocale(v)}</select>`}
 
-        <label>IP privée (réseau host-only)
-          <span class="info" title="Adresse fixe pour joindre la VM depuis ton PC et entre VMs, sur un réseau isolé. Laisse vide pour une IP automatique.">i</span>
+        <label>${t('vm.ip')}
+          <span class="info" title="${t('vm.ip.tip')}">i</span>
         </label>
         <input type="text" data-vm="${v.id}" data-field="ip" value="${v.ip}" placeholder="vide = IP automatique">
 
-        <label>Provider spécifique (sinon : global)</label>
+        <label>${t('vm.provider')}</label>
         <select data-vm="${v.id}" data-field="provider">
           <option value="" ${v.provider===''?'selected':''}>— hérite du global —</option>
           <option value="virtualbox" ${v.provider==='virtualbox'?'selected':''}>VirtualBox</option>
@@ -138,61 +147,67 @@ function renderForm(nomsErr){
         </select>
 
         <div class="checkbox-row"><input type="checkbox" data-vm="${v.id}" data-field="gui" ${v.gui?'checked':''}>
-          <label>Afficher la fenêtre de la VM (utile pour debug)</label></div>
+          <label>${t('vm.gui')}</label></div>
         <div class="checkbox-row"><input type="checkbox" data-vm="${v.id}" data-field="publicNetwork" ${v.publicNetwork?'checked':''}>
-          <label>Interface en pont (public_network) — la VM sur ton vrai réseau</label></div>
+          <label>${t('vm.pont')}</label></div>
 
-        <label>Dossier partagé PC → /vagrant
-          <span class="info" title="Un dossier de ton PC visible dans la VM sous /vagrant. Pratique pour éditer du code côté PC et l'exécuter dans la VM.">i</span>
+        <label>${t('vm.dossier')}
+          <span class="info" title="${t('vm.dossier.tip')}">i</span>
         </label>
         <input type="text" data-vm="${v.id}" data-field="syncedFolder" value="${v.syncedFolder}" ${v.disableSyncedFolder?'disabled':''}>
         <div class="checkbox-row"><input type="checkbox" data-vm="${v.id}" data-field="disableSyncedFolder" ${v.disableSyncedFolder?'checked':''}>
-          <label>Désactiver le dossier partagé (contourne un bug du plugin VMware récent)</label></div>
+          <label>${t('vm.dossier_off')}</label></div>
 
         ${estBoxWindows(v) ? `
         <div class="row2">
-          <div><label>WinRM — utilisateur</label>
+          <div><label>${t('vm.winrm_user')}</label>
             <input type="text" data-vm="${v.id}" data-field="winrmUsername" value="${v.winrmUsername||''}" placeholder="vagrant"></div>
-          <div><label>WinRM — mot de passe</label>
+          <div><label>${t('vm.winrm_pass')}</label>
             <input type="text" data-vm="${v.id}" data-field="winrmPassword" value="${v.winrmPassword||''}" placeholder="vagrant"></div>
         </div>
-        <label>Mot de passe Administrator</label>
+        <label>${t('vm.admin_pass')}</label>
         <input type="text" data-vm="${v.id}" data-field="rootPassword" value="${v.rootPassword||''}" placeholder="vide = inchangé">` : `
         <div class="row2">
-          <div><label>SSH — utilisateur</label>
+          <div><label>${t('vm.ssh_user')}</label>
             <input type="text" data-vm="${v.id}" data-field="sshUsername" value="${v.sshUsername||''}" placeholder="vagrant"></div>
-          <div><label>SSH — mot de passe</label>
+          <div><label>${t('vm.ssh_pass')}</label>
             <input type="text" data-vm="${v.id}" data-field="sshPassword" value="${v.sshPassword||''}" placeholder="clé par défaut"></div>
         </div>
-        <label>Mot de passe root (login console/GUI)</label>
+        <label>${t('vm.root_pass')}</label>
         <input type="text" data-vm="${v.id}" data-field="rootPassword" value="${v.rootPassword||''}" placeholder="vide = inchangé">`}
 
-        <label>Ports redirigés (VM → PC)
-          <span class="info" title="Rend un service de la VM accessible depuis ton PC. Ex. guest 80 → host 8080 : http://localhost:8080 ouvre le port 80 de la VM.">i</span>
+        <label>${t('vm.ports')}
+          <span class="info" title="${t('vm.ports.tip')}">i</span>
         </label>
         <div class="ports-list">${ports}</div>
-        <div class="btn-row"><button class="btn small" data-action="addport" data-vm="${v.id}">+ port</button></div>
+        <div class="btn-row"><button class="btn small" data-action="addport" data-vm="${v.id}">+ ${LANGUE_COURANTE==='en'?'port':'port'}</button></div>
 
-        <label>Provisioning — que faire au démarrage ?</label>
+        <label>${t('vm.disques')}
+          <span class="info" title="${t('vm.disques.tip')}">i</span>
+        </label>
+        <div class="ports-list">${disques}</div>
+        <div class="btn-row"><button class="btn small" data-action="adddisk" data-vm="${v.id}">+ ${LANGUE_COURANTE==='en'?'disk':'disque'}</button></div>
+
+        <label>${t('vm.provision')}</label>
         <select data-vm="${v.id}" data-field="provisionType">
-          <option value="shell" ${v.provisionType==='shell'?'selected':''}>script shell</option>
-          <option value="ansible" ${v.provisionType==='ansible'?'selected':''}>playbook Ansible</option>
-          <option value="none" ${v.provisionType==='none'?'selected':''}>rien</option>
+          <option value="shell" ${v.provisionType==='shell'?'selected':''}>${LANGUE_COURANTE==='en'?'shell script':'script shell'}</option>
+          <option value="ansible" ${v.provisionType==='ansible'?'selected':''}>${LANGUE_COURANTE==='en'?'Ansible playbook':'playbook Ansible'}</option>
+          <option value="none" ${v.provisionType==='none'?'selected':''}>${LANGUE_COURANTE==='en'?'nothing':'rien'}</option>
         </select>
         ${v.provisionType==='shell'?`
-          <label>Aide : insérer une commande toute prête
-            <span class="info" title="Choisis une commande courante, elle s'ajoute au script ci-dessous. Tu peux en empiler plusieurs.">i</span>
+          <label>${t('vm.aide_cmd')}
+            <span class="info" title="${t('vm.aide_cmd.tip')}">i</span>
           </label>
           <select data-vm="${v.id}" data-field="snippet">${optionsSnippets()}</select>
-          <label>Script shell (lancé en root au 1er démarrage)</label>
+          <label>${t('vm.script')}</label>
           <textarea data-vm="${v.id}" data-field="provisionScript" rows="5">${v.provisionScript}</textarea>`:''}
         ${v.provisionType==='ansible'?`
-          <label>Chemin du playbook</label>
+          <label>${t('vm.playbook')}</label>
           <input type="text" data-vm="${v.id}" data-field="provisionScript" value="${(v.provisionScript||'').includes('.yml')?v.provisionScript:'provisioning/playbook.yml'}">`:''}
 
         <div class="btn-row">
-          <button class="btn small" data-action="dup" data-vm="${v.id}">dupliquer</button>
-          <button class="btn danger small" data-action="remove" data-vm="${v.id}">supprimer</button>
+          <button class="btn small" data-action="dup" data-vm="${v.id}">${LANGUE_COURANTE==='en'?'duplicate':'dupliquer'}</button>
+          <button class="btn danger small" data-action="remove" data-vm="${v.id}">${LANGUE_COURANTE==='en'?'remove':'supprimer'}</button>
         </div>
       </div>
     </div>`;
@@ -208,6 +223,8 @@ function cabler(list){
   list.querySelectorAll('[data-action="dup"]').forEach(el=>el.addEventListener('click',()=>dupVM(el.getAttribute('data-vm'))));
   list.querySelectorAll('[data-action="addport"]').forEach(el=>el.addEventListener('click',()=>addPort(el.getAttribute('data-vm'))));
   list.querySelectorAll('[data-action="rmport"]').forEach(el=>el.addEventListener('click',()=>rmPort(el.getAttribute('data-vm'),parseInt(el.getAttribute('data-idx')))));
+  list.querySelectorAll('[data-action="adddisk"]').forEach(el=>el.addEventListener('click',()=>addDisk(el.getAttribute('data-vm'))));
+  list.querySelectorAll('[data-action="rmdisk"]').forEach(el=>el.addEventListener('click',()=>rmDisk(el.getAttribute('data-vm'),parseInt(el.getAttribute('data-idx')))));
   list.querySelectorAll('[data-versions]').forEach(el=>el.addEventListener('click',()=>chargerVersions(el.getAttribute('data-versions'))));
 }
 
@@ -252,6 +269,8 @@ function onField(e){
   let restructure=false;
 
   if(f==='port-guest'||f==='port-host'){ v.ports[parseInt(el.getAttribute('data-idx'))][f==='port-guest'?'guest':'host']=parseInt(el.value)||0; }
+  else if(f==='disk-name'){ v.extraDisks[parseInt(el.getAttribute('data-idx'))].name=el.value; }
+  else if(f==='disk-size'){ v.extraDisks[parseInt(el.getAttribute('data-idx'))].sizeGb=parseInt(el.value)||1; }
   else if(f==='cpus'){ v.cpus=parseInt(el.value)||1; }
   else if(f==='memory'){ if(el.value==='__custom__'){ restructure=true; } else { v.memory=parseInt(el.value)||1024; restructure=true; } }
   else if(f==='memoryCustom'){ v.memory=parseInt(el.value)||1024; }
@@ -293,7 +312,62 @@ function restaurer(){ try{ const d=JSON.parse(localStorage.getItem(CLE)); if(!d|
 
 function telecharger(blob,nom){ const u=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=u; a.download=nom; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(u); }
 function exporter(){ telecharger(new Blob([JSON.stringify(configCourante(),null,2)],{type:'application/json'}),'vagrantforge.config.json'); }
-function importer(f){ const r=new FileReader(); r.onload=()=>{ try{ const c=JSON.parse(r.result); $('#g-provider').value=c.provider||'virtualbox'; $('#g-boxcheck').checked=!!c.box_check_update; vms=(c.vms||[]).map((x,i)=>{ const v=makeVM(i); Object.assign(v,{name:x.name??v.name,box:x.box??v.box,boxVersion:x.box_version??'',guestOs:x.guest_os??'',memory:x.memory??2048,cpus:x.cpus??1,ip:x.ip??'',provider:x.provider??'',gui:!!x.gui,publicNetwork:!!x.public_network,locale:x.locale??'',keymap:x.keymap??'',syncedFolder:x.synced_folder??('./'+(x.name||'vm')),disableSyncedFolder:!!x.disable_synced_folder,sshUsername:x.ssh_username??'',sshPassword:x.ssh_password??'',winrmUsername:x.winrm_username??'',winrmPassword:x.winrm_password??'',rootPassword:x.root_password??'',ports:x.ports??[],provisionType:(x.provision&&x.provision.type)||'none',provisionScript:(x.provision&&x.provision.script)||''}); openStates[v.id]=i===0; return v; }); rendre(); }catch(e){ alert('JSON invalide : '+e.message); } }; r.readAsText(f); }
+function telechargerInventaire(){ telecharger(new Blob([buildAnsibleInventory(configCourante())],{type:'text/plain'}),'inventaire-ansible.ini'); }
+
+/* ── Thème clair / sombre ─────────────────────────────────── */
+const CLE_THEME='vagrantforge.theme';
+function appliquerTheme(theme){
+  document.documentElement.setAttribute('data-theme', theme==='dark'?'dark':'light');
+  const btn=$('#theme-btn'); if(btn) btn.innerHTML = theme==='dark' ? '<i class="fa-solid fa-sun"></i>' : '<i class="fa-solid fa-moon"></i>';
+}
+function basculerTheme(){
+  const actuel=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'light';
+  const suivant=actuel==='dark'?'light':'dark';
+  try{ localStorage.setItem(CLE_THEME, suivant); }catch(e){}
+  appliquerTheme(suivant);
+}
+function themeInitial(){
+  try{ const s=localStorage.getItem(CLE_THEME); if(s) return s; }catch(e){}
+  return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+}
+
+/* ── Lien de partage (config encodée en base64 dans l'URL) ─── */
+function configVersBase64(cfg){ return btoa(unescape(encodeURIComponent(JSON.stringify(cfg)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+function base64VersConfig(b64){
+  const norm = b64.replace(/-/g,'+').replace(/_/g,'/');
+  const pad = norm.length%4 ? '='.repeat(4-(norm.length%4)) : '';
+  return JSON.parse(decodeURIComponent(escape(atob(norm+pad))));
+}
+async function partagerLien(){
+  const b64=configVersBase64(configCourante());
+  const url=location.origin+location.pathname+'#cfg='+b64;
+  try{ await navigator.clipboard.writeText(url); const f=$('#flash'); if(f){ f.textContent='lien copié ✓'; f.classList.add('show'); setTimeout(()=>{ f.classList.remove('show'); f.textContent='copié ✓'; },1600); } }
+  catch(e){ prompt('Copie ce lien :', url); }
+}
+function chargerDepuisHash(){
+  const m=location.hash.match(/#cfg=([^&]+)/);
+  if(!m) return false;
+  try{
+    const c=base64VersConfig(m[1]);
+    $('#g-provider').value=c.provider||'virtualbox';
+    $('#g-boxcheck').checked=!!c.box_check_update;
+    vms=(c.vms||[]).map((x,i)=>{
+      const v=makeVM(i);
+      Object.assign(v,{name:x.name??v.name,box:x.box??v.box,boxVersion:x.box_version??'',guestOs:x.guest_os??'',
+        memory:x.memory??2048,cpus:x.cpus??1,ip:x.ip??'',provider:x.provider??'',gui:!!x.gui,publicNetwork:!!x.public_network,
+        locale:x.locale??'',keymap:x.keymap??'',syncedFolder:x.synced_folder??('./'+(x.name||'vm')),
+        disableSyncedFolder:!!x.disable_synced_folder,sshUsername:x.ssh_username??'',sshPassword:x.ssh_password??'',
+        winrmUsername:x.winrm_username??'',winrmPassword:x.winrm_password??'',rootPassword:x.root_password??'',
+        ports:x.ports??[],extraDisks:(x.extra_disks||[]).map(d=>({name:d.name||'',sizeGb:d.size_gb||10})),
+        provisionType:(x.provision&&x.provision.type)||'none',provisionScript:(x.provision&&x.provision.script)||''});
+      openStates[v.id]=i===0; return v;
+    });
+    history.replaceState(null,'',location.pathname);
+    return vms.length>0;
+  }catch(e){ console.warn('Lien de partage invalide', e); return false; }
+}
+
+function importer(f){ const r=new FileReader(); r.onload=()=>{ try{ const c=JSON.parse(r.result); $('#g-provider').value=c.provider||'virtualbox'; $('#g-boxcheck').checked=!!c.box_check_update; vms=(c.vms||[]).map((x,i)=>{ const v=makeVM(i); Object.assign(v,{name:x.name??v.name,box:x.box??v.box,boxVersion:x.box_version??'',guestOs:x.guest_os??'',memory:x.memory??2048,cpus:x.cpus??1,ip:x.ip??'',provider:x.provider??'',gui:!!x.gui,publicNetwork:!!x.public_network,locale:x.locale??'',keymap:x.keymap??'',syncedFolder:x.synced_folder??('./'+(x.name||'vm')),disableSyncedFolder:!!x.disable_synced_folder,sshUsername:x.ssh_username??'',sshPassword:x.ssh_password??'',winrmUsername:x.winrm_username??'',winrmPassword:x.winrm_password??'',rootPassword:x.root_password??'',ports:x.ports??[],extraDisks:(x.extra_disks||[]).map(d=>({name:d.name||'',sizeGb:d.size_gb||10})),provisionType:(x.provision&&x.provision.type)||'none',provisionScript:(x.provision&&x.provision.script)||''}); openStates[v.id]=i===0; return v; }); rendre(); }catch(e){ alert('JSON invalide : '+e.message); } }; r.readAsText(f); }
 
 function rendre(){ renderForm(); renderOutput(); sauver(); }
 
@@ -305,11 +379,13 @@ function init(){
     solo:['fa-server','ic-blue'], k3s:['fa-diagram-project','ic-cyan'],
     lamp:['fa-globe','ic-green'], devsecops:['fa-shield-halved','ic-amber'],
     pentest:['fa-user-secret','ic-red'], monitoring:['fa-chart-line','ic-cyan'],
-    elk:['fa-magnifying-glass-chart','ic-amber'], wordpress:['fa-wordpress','ic-blue'],
-    'gitlab-runner':['fa-gitlab','ic-amber'], nextcloud:['fa-cloud','ic-green']};
+    elk:['fa-magnifying-glass-chart','ic-amber'], wordpress:['fa-brands fa-wordpress','ic-blue'],
+    'gitlab-runner':['fa-brands fa-gitlab','ic-amber'], nextcloud:['fa-cloud','ic-green'],
+    'windows-ad':['fa-desktop','ic-blue']};
   $('#presets-grid').innerHTML=Object.entries(PRESETS).map(([k,p])=>{
     const [ic,cls]=ICP[k]||['fa-box','ic-violet'];
-    return `<button class="preset-card" data-preset="${k}" data-testid="preset-${k}-btn"><span class="preset-ic ${cls}"><i class="fa-solid ${ic}"></i></span><span class="preset-txt"><span class="t">${p.t}</span><span class="d">${p.d}</span></span></button>`;
+    const iconClass = ic.startsWith('fa-brands')?ic:`fa-solid ${ic}`;
+    return `<button class="preset-card" data-preset="${k}" data-testid="preset-${k}-btn"><span class="preset-ic ${cls}"><i class="${iconClass}"></i></span><span class="preset-txt"><span class="t">${p.t}</span><span class="d">${p.d}</span></span></button>`;
   }).join('');
   document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click',()=>loadPreset(b.getAttribute('data-preset'))));
   $('#add-vm').addEventListener('click',addVM);
@@ -327,10 +403,32 @@ function init(){
   $('#overlay').addEventListener('click',e=>{ if(e.target===$('#overlay')) fermerAide(); });
   document.addEventListener('keydown',e=>{ if(e.key==='Escape') fermerAide(); });
 
+  const themeBtn=$('#theme-btn'); if(themeBtn) themeBtn.addEventListener('click',basculerTheme);
+  const langBtn=$('#lang-btn'); if(langBtn) langBtn.addEventListener('click',basculerLangue);
+  const inventaireBtn=$('#inventaire-btn'); if(inventaireBtn) inventaireBtn.addEventListener('click',telechargerInventaire);
+  const partageBtn=$('#partage-btn'); if(partageBtn) partageBtn.addEventListener('click',partagerLien);
+
   $('#hamburger').addEventListener('click',()=>$('#menu-mobile').classList.toggle('open'));
-  $('#menu-mobile').querySelectorAll('[data-menu]').forEach(b=>b.addEventListener('click',()=>{ const a=b.getAttribute('data-menu'); $('#menu-mobile').classList.remove('open'); if(a==='aide') ouvrirAide(); if(a==='import') $('#import-file').click(); if(a==='export') exporter(); }));
+  $('#menu-mobile').querySelectorAll('[data-menu]').forEach(b=>b.addEventListener('click',()=>{ const a=b.getAttribute('data-menu'); $('#menu-mobile').classList.remove('open'); if(a==='aide') ouvrirAide(); if(a==='import') $('#import-file').click(); if(a==='export') exporter(); if(a==='inventaire') telechargerInventaire(); if(a==='partage') partagerLien(); if(a==='lang') basculerLangue(); }));
   document.querySelectorAll('.mobile-tabs button').forEach(b=>b.addEventListener('click',()=>{ document.body.dataset.vue=b.getAttribute('data-vue'); document.querySelectorAll('.mobile-tabs button').forEach(x=>x.classList.remove('actif')); b.classList.add('actif'); }));
 
-  if(restaurer()) rendre(); else addVM();
+  if(chargerDepuisHash()) rendre();
+  else if(restaurer()) rendre();
+  else addVM();
+
+  // PWA : enregistrement du service worker (inactif en file://, normal).
+  if('serviceWorker' in navigator && location.protocol!=='file:'){
+    navigator.serviceWorker.register('service-worker.js').catch(()=>{});
+  }
+  let promptInstall=null;
+  window.addEventListener('beforeinstallprompt', e=>{ e.preventDefault(); promptInstall=e; const b=$('#install-btn'); if(b) b.hidden=false; });
+  const installBtn=$('#install-btn');
+  if(installBtn) installBtn.addEventListener('click',async()=>{ if(!promptInstall) return; promptInstall.prompt(); await promptInstall.userChoice; promptInstall=null; installBtn.hidden=true; });
 }
-document.addEventListener('DOMContentLoaded',init);
+document.addEventListener('DOMContentLoaded',()=>{
+  appliquerTheme(themeInitial());
+  appliquerI18nStatique();
+  const langBtn=document.getElementById('lang-btn'); if(langBtn) langBtn.textContent=t('nav.lang');
+  const langBtnMobile=document.getElementById('lang-btn-mobile'); if(langBtnMobile) langBtnMobile.textContent=t('nav.lang');
+  init();
+});

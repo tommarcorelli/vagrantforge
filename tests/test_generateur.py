@@ -10,10 +10,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.generateur import construire_vagrantfile, nom_variable, echapper, construire_sections, est_box_windows
+from core.generateur import (construire_vagrantfile, nom_variable, echapper, construire_sections,
+                              est_box_windows, construire_inventaire_ansible)
 from core.schema import valider_config
 from core.presets import PRESETS, obtenir_preset
 from core.lint import linter_vagrantfile
+from core.export_projet import construire_zip_projet
 
 
 def test_nom_variable_prefixe_les_chiffres():
@@ -224,6 +226,94 @@ def test_guest_os_explicite_prend_le_pas_sur_le_nom_de_box():
     assert est_box_windows(vm)
     vm2 = {"box": "gusztavvargadr/windows-11", "guest_os": "linux"}
     assert not est_box_windows(vm2)
+
+
+def test_disque_additionnel_virtualbox():
+    config = {"provider": "virtualbox", "vms": [
+        {"name": "data", "box": "debian/bookworm64", "memory": 1024, "cpus": 1,
+         "extra_disks": [{"name": "stockage", "size_gb": 20}]}
+    ]}
+    erreurs, avertissements = valider_config(config)
+    assert erreurs == []
+    vf = construire_vagrantfile(config)
+    assert "createhd" in vf
+    assert "storageattach" in vf
+    assert '"--size", 20480' in vf
+    lint_err, _ = linter_vagrantfile(vf, utiliser_ruby=False)
+    assert lint_err == []
+
+
+def test_disque_additionnel_taille_invalide():
+    config = {"provider": "virtualbox", "vms": [
+        {"name": "data", "box": "debian/bookworm64", "memory": 1024, "cpus": 1,
+         "extra_disks": [{"name": "stockage", "size_gb": 0}]}
+    ]}
+    erreurs, _ = valider_config(config)
+    assert any("size_gb" in e for e in erreurs)
+
+
+def test_disque_additionnel_libvirt():
+    config = {"provider": "libvirt", "vms": [
+        {"name": "data", "box": "generic/debian12", "memory": 1024, "cpus": 1,
+         "extra_disks": [{"name": "stockage", "size_gb": 10}]}
+    ]}
+    vf = construire_vagrantfile(config)
+    assert 'lv.storage :file, size: "10G"' in vf
+
+
+def test_preset_windows_ad_valide_et_genere():
+    config = obtenir_preset("windows-ad")
+    erreurs, _ = valider_config(config)
+    assert erreurs == []
+    vf = construire_vagrantfile(config)
+    assert "winrm" in vf
+    assert "#ps1_sysnative" in vf
+    lint_err, _ = linter_vagrantfile(vf, utiliser_ruby=False)
+    assert lint_err == []
+
+
+def test_inventaire_ansible_ssh():
+    config = obtenir_preset("k3s")
+    inventaire = construire_inventaire_ansible(config)
+    assert "[tous]" in inventaire
+    assert "k3s-master ansible_host=192.168.56.10" in inventaire
+    assert "[k3s]" in inventaire
+    assert "ansible_user=vagrant" in inventaire
+
+
+def test_inventaire_ansible_winrm():
+    config = obtenir_preset("windows-ad")
+    inventaire = construire_inventaire_ansible(config)
+    assert "ansible_connection=winrm" in inventaire
+    assert "ansible_port=5985" in inventaire
+
+
+def test_inventaire_ansible_config_vide():
+    assert "vide" in construire_inventaire_ansible({"vms": []})
+
+
+def test_export_zip_contient_vagrantfile_et_readme():
+    config = obtenir_preset("solo")
+    vf = construire_vagrantfile(config)
+    archive = construire_zip_projet(config, vf)
+    import zipfile
+    import io
+    zf = zipfile.ZipFile(io.BytesIO(archive))
+    noms = zf.namelist()
+    assert "Vagrantfile" in noms
+    assert "README.md" in noms
+    assert any(n.startswith("box/") for n in noms)  # dossier synced_folder du preset solo
+
+
+def test_export_zip_avec_inventaire():
+    config = obtenir_preset("k3s")
+    vf = construire_vagrantfile(config)
+    inventaire = construire_inventaire_ansible(config)
+    archive = construire_zip_projet(config, vf, inventaire)
+    import zipfile
+    import io
+    zf = zipfile.ZipFile(io.BytesIO(archive))
+    assert "inventaire-ansible.ini" in zf.namelist()
 
 
 if __name__ == "__main__":

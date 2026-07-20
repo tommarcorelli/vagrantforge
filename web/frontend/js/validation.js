@@ -31,6 +31,13 @@ function valider(pg, vms){
       ['guest','host'].forEach(k=>{ const x=parseInt(p[k]); if(!Number.isInteger(x)||x<1||x>65535){ erreurs.push(`${n} : port ${k} hors bornes (1–65535).`); nomsErr[v.id]=true; } });
       const h=parseInt(p.host); if(Number.isInteger(h)){ if(portsHote[h]) avert.push(`Port hôte ${h} partagé (${portsHote[h]} & ${n}) — auto_correct le décalera.`); else portsHote[h]=n; }
     });
+    const nomsDisquesVus={};
+    (v.extraDisks||[]).forEach(d=>{
+      const taille=parseInt(d.sizeGb);
+      if(!Number.isInteger(taille)||taille<1){ erreurs.push(`${n} : taille de disque invalide (≥ 1 Go).`); nomsErr[v.id]=true; }
+      if(d.name){ if(nomsDisquesVus[d.name]){ erreurs.push(`${n} : nom de disque « ${d.name} » utilisé deux fois.`); nomsErr[v.id]=true; } nomsDisquesVus[d.name]=true; }
+    });
+    if((v.extraDisks||[]).length && (v.provider||pg)==='vmware_desktop') avert.push(`${n} : disque(s) additionnel(s) non automatisables avec vmware_desktop.`);
     if(v.provisionType==='ansible'&&!v.provisionScript){ erreurs.push(`${n} : Ansible sans chemin de playbook.`); nomsErr[v.id]=true; }
     if(v.sshPassword||v.rootPassword||v.winrmPassword) avert.push(`${n} : mot de passe en clair — OK pour un lab jetable seulement.`);
     if(estBoxWindows(v)){

@@ -234,4 +234,11 @@ const PRESETS = {
     _vmp('gitlab-runner','debian/bookworm64',2048,2,sr,70,[], 'apt-get update -y\napt-get install -y curl ca-certificates\ncurl -fsSL https://get.docker.com | sh\ncurl -L "https://gitlab-runner-downloads.s3.amazonaws.com/latest/deb/gitlab-runner_amd64.deb" -o /tmp/gitlab-runner.deb\ndpkg -i /tmp/gitlab-runner.deb\n# Enregistrement : gitlab-runner register --url <url_gitlab> --registration-token <token>\n')]},
   nextcloud: {t:'Nextcloud', d:'Cloud personnel (stockage/partage) + MariaDB.', build:sr=>[
     _vmp('nextcloud','debian/bookworm64',2048,2,sr,80,[{guest:443,host:8443},{guest:80,host:8083}], "apt-get update -y\napt-get install -y apache2 mariadb-server php libapache2-mod-php php-mysql php-gd php-curl php-mbstring php-xml php-zip php-intl\nsystemctl enable --now apache2 mariadb\nmysql -e \"CREATE DATABASE nextcloud; CREATE USER 'nc'@'localhost' IDENTIFIED BY 'nc';\nGRANT ALL PRIVILEGES ON nextcloud.* TO 'nc'@'localhost'; FLUSH PRIVILEGES;\"\ncd /tmp && wget -q https://download.nextcloud.com/server/releases/latest.zip\napt-get install -y unzip && unzip -q latest.zip -d /var/www/\nchown -R www-data:www-data /var/www/nextcloud\n")]},
+  'windows-ad': {t:'Windows AD', d:'Contrôleur de domaine Active Directory + poste client (WinRM).', build:sr=>[
+    _vmp('win-dc','gusztavvargadr/windows-server',4096,2,sr,90,[],
+      "Install-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools\n# Puis (redémarrage requis) :\n# Install-ADDSForest -DomainName 'lab.local' -InstallDns -SafeModeAdministratorPassword (ConvertTo-SecureString 'ChangeMoi!2024' -AsPlainText -Force)\n",
+      {guestOs:'windows', winrmUsername:'vagrant', winrmPassword:'vagrant', rootPassword:'ChangeMoi!2024'}),
+    _vmp('win-client','gusztavvargadr/windows-11',4096,2,sr,91,[],
+      "# Rejoindre le domaine (une fois le DC prêt) :\n# Add-Computer -DomainName 'lab.local' -Restart\n",
+      {guestOs:'windows', winrmUsername:'vagrant', winrmPassword:'vagrant'})]},
 };

@@ -12,6 +12,8 @@ Exemples :
     forge presets                             # liste les presets dispo
     forge verifier-box                        # compare le catalogue à Vagrant Cloud
     forge versions-box debian/bookworm64      # liste les vraies versions publiées
+    forge inventaire config.json -o hosts.ini # inventaire Ansible (INI)
+    forge exporter config.json -o projet.zip  # projet complet en .zip (Vagrantfile + arbo + README)
 """
 
 import argparse
@@ -30,11 +32,12 @@ for _flux in (sys.stdout, sys.stderr):
 # Permet l'exécution directe (python cli/main.py) comme via `python -m cli.main`.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.generateur import construire_vagrantfile            # noqa: E402
+from core.generateur import construire_vagrantfile, construire_inventaire_ansible  # noqa: E402
 from core.schema import valider_config, BOX_PROVIDERS         # noqa: E402
 from core.presets import PRESETS, obtenir_preset               # noqa: E402
 from core.lint import linter_vagrantfile                       # noqa: E402
 from core.verif_box import verifier_catalogue, recuperer_versions_distantes  # noqa: E402
+from core.export_projet import construire_zip_projet            # noqa: E402
 
 
 class C:
@@ -143,6 +146,36 @@ def cmd_presets(args):
     return 0
 
 
+def cmd_inventaire(args):
+    config = charger_json(args.config)
+    erreurs, avertissements = valider_config(config)
+    afficher_diagnostics(erreurs, avertissements)
+    if erreurs and not args.forcer:
+        err(f"{C.ROUGE}{C.GRAS}Génération annulée : {len(erreurs)} erreur(s).{C.RAZ} "
+            f"Utilise --forcer pour passer outre.")
+        sys.exit(1)
+    contenu = construire_inventaire_ansible(config)
+    ecrire_sortie(contenu, args.output)
+    return 0
+
+
+def cmd_exporter(args):
+    config = charger_json(args.config)
+    erreurs, avertissements = valider_config(config)
+    afficher_diagnostics(erreurs, avertissements)
+    if erreurs and not args.forcer:
+        err(f"{C.ROUGE}{C.GRAS}Export annulé : {len(erreurs)} erreur(s).{C.RAZ} "
+            f"Utilise --forcer pour passer outre.")
+        sys.exit(1)
+    vagrantfile = construire_vagrantfile(config, charger_gabarit(args.gabarit))
+    inventaire = construire_inventaire_ansible(config) if args.avec_inventaire else None
+    archive = construire_zip_projet(config, vagrantfile, inventaire)
+    sortie = args.output or "projet-vagrantforge.zip"
+    Path(sortie).write_bytes(archive)
+    err(f"{C.VERT}✓ Projet exporté dans {sortie} ({len(archive)} octets){C.RAZ}")
+    return 0
+
+
 def cmd_versions_box(args):
     versions, erreur = recuperer_versions_distantes(args.box, limite=args.limite)
     if erreur:
@@ -220,6 +253,21 @@ def construire_parser():
 
     lp = sous.add_parser("presets", help="Liste les presets disponibles.")
     lp.set_defaults(fonc=cmd_presets)
+
+    inv = sous.add_parser("inventaire", help="Génère un inventaire Ansible (INI) depuis une config JSON.")
+    inv.add_argument("config", help="Chemin du JSON, ou '-' pour stdin.")
+    inv.add_argument("-o", "--output", help="Fichier de sortie (défaut : stdout).")
+    inv.add_argument("--forcer", action="store_true", help="Génère malgré les erreurs de validation.")
+    inv.set_defaults(fonc=cmd_inventaire)
+
+    ex = sous.add_parser("exporter", help="Exporte un projet complet en .zip (Vagrantfile + arborescence + README).")
+    ex.add_argument("config", help="Chemin du JSON, ou '-' pour stdin.")
+    ex.add_argument("-o", "--output", help="Fichier .zip de sortie (défaut : projet-vagrantforge.zip).")
+    ex.add_argument("--forcer", action="store_true", help="Exporte malgré les erreurs de validation.")
+    ex.add_argument("--gabarit", help="Fichier gabarit personnalisé (voir core/generateur.py).")
+    ex.add_argument("--avec-inventaire", action="store_true", dest="avec_inventaire",
+                     help="Inclut aussi un inventaire Ansible (inventaire-ansible.ini) dans l'archive.")
+    ex.set_defaults(fonc=cmd_exporter)
 
     vb = sous.add_parser("verifier-box", help="Compare le catalogue de box à Vagrant Cloud (réseau requis).")
     vb.add_argument("--box", help="Ne vérifie qu'une seule box (défaut : tout le catalogue).")

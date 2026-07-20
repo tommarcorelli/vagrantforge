@@ -1,0 +1,241 @@
+/* VagrantForge — i18n minimal (FR ↔ EN), zéro dépendance.
+ *
+ * Portée assumée : l'interface (nav, hero, en-têtes, libellés de formulaire,
+ * modale d'aide, presets) bascule en anglais. Restent volontairement en
+ * français : les messages de validation produits par le cœur (core/schema.py
+ * et son miroir validation.js — un gros chantier à part, documenté dans
+ * PROMPT-PROJET.md), et le contenu généré dans le Vagrantfile lui-même
+ * (commentaires, scripts de provisioning) puisqu'il s'agit de code, pas
+ * d'interface.
+ *
+ * Utilisation :
+ *   - Texte statique : <span data-i18n="nav.aide">Comment ça marche</span>
+ *   - Attribut (ex. title d'un ⓘ) : data-i18n-title="tip.provider"
+ *   - Placeholder : data-i18n-placeholder="champ.recherche"
+ *   - Dans le JS : t('nav.aide')  → chaîne dans la langue courante
+ */
+
+const I18N = {
+  fr: {
+    'nav.theme': 'Basculer thème clair/sombre',
+    'nav.aide': 'Comment ça marche',
+    'nav.partager': 'Partager',
+    'nav.inventaire': 'Inventaire Ansible',
+    'nav.importer': 'Importer',
+    'nav.exporter': 'Exporter',
+    'nav.installer': "Installer l'appli",
+    'nav.telecharger': 'Télécharger le projet',
+    'nav.lang': 'English',
+
+    'hero.badge': 'Générateur de Vagrantfile · style CasaOS',
+    'hero.titre1': 'Forge tes labs de VMs',
+    'hero.titre2': 'sans écrire une ligne de Ruby',
+    'hero.sous': "Décris tes machines dans le formulaire — VagrantForge écrit le Vagrantfile, validé, commenté et prêt à vagrant up. Tout tourne dans ton navigateur.",
+    'hero.commencer': 'Commencer',
+    'hero.telecharger': 'Télécharger le projet',
+    'feat.multivm.t': 'Multi-VM', 'feat.multivm.d': 'Autant de machines que tu veux',
+    'feat.lang.t': 'Langue & clavier', 'feat.lang.d': 'AZERTY réglé au 1er boot',
+    'feat.presets.t': 'Presets', 'feat.presets.d': "Labs prêts à l'emploi",
+    'feat.valid.t': 'Validation live', 'feat.valid.d': 'Erreurs & alertes en direct',
+
+    'tabs.config': 'Configuration', 'tabs.apercu': 'Aperçu',
+
+    'g.titre': 'Réglages globaux',
+    'g.provider': 'Logiciel de virtualisation (provider)',
+    'g.provider.tip': 'Le logiciel qui fait tourner les VMs sur ta machine. VirtualBox est gratuit et le plus répandu — choisis-le en cas de doute.',
+    'g.provider.vb': 'VirtualBox — gratuit, le plus courant',
+    'g.provider.vm': 'VMware Desktop — payant, rapide',
+    'g.provider.lv': 'libvirt (KVM/QEMU) — Linux',
+    'g.boxcheck': 'Vérifier les mises à jour des images au démarrage',
+    'g.boxcheck.tip': 'Si coché, Vagrant vérifie une nouvelle version de l\u2019image à chaque « vagrant up ». Décoché = démarrage plus rapide et reproductible.',
+    'g.subnet': "Réseau privé — plage d'adresses",
+    'g.subnet.tip': 'Les VMs communiquent entre elles et avec ton PC sur ce réseau isolé (host-only). Chaque VM prend une adresse ici : .10, .11, .12…',
+    'g.subnet.hint': "C'est un réseau <b>privé</b> entre ton PC et les VMs (rien à voir avec Internet). Chaque VM ajoutée reçoit l'adresse suivante : 192.168.56.<b>10</b>, .<b>11</b>, .<b>12</b>…",
+
+    'p.titre': 'Démarrages rapides', 'p.vider': 'tout vider',
+    'v.titre': 'Machines virtuelles', 'v.ajouter': 'ajouter une VM',
+
+    'term.copier': 'copier', 'term.telecharger': 'télécharger', 'term.copie': 'copié ✓', 'term.lien_copie': 'lien copié ✓',
+
+    'footer': 'Forgé avec <span class="grad"><i class="fa-solid fa-hammer"></i> VagrantForge</span> — décris, valide, <code>vagrant up</code>.',
+
+    'modal.titre': 'Comment ça marche',
+    'modal.intro': 'VagrantForge fabrique un <b>Vagrantfile</b> : le plan de montage de tes machines virtuelles. Tu remplis un formulaire, le fichier se génère tout seul à droite.',
+    'modal.etapes': 'En 4 étapes',
+    'modal.etape1': 'Choisis ton <b>provider</b> (VirtualBox si tu ne sais pas) dans les réglages globaux.',
+    'modal.etape2': '<b>Ajoute des VMs</b> : leur OS, leur RAM, leur réseau, leur langue, ce qu\u2019elles installent au démarrage.',
+    'modal.etape3': 'Le <b>Vagrantfile</b> apparaît à droite, coloré et validé en temps réel.',
+    'modal.etape4': '<b>Télécharge-le</b> dans un dossier vide, ouvre un terminal dedans et lance <code>vagrant up</code>. C\u2019est parti.',
+    'modal.vocab': 'Le vocabulaire',
+    'modal.box.t': 'box (image)', 'modal.box.d': 'Le disque de départ d\u2019une VM (ex. Debian 12). VagrantForge te propose les vraies images publiques, par leur nom complet.',
+    'modal.provider.t': 'provider', 'modal.provider.d': 'Le logiciel qui exécute les VMs sur ton PC : VirtualBox, VMware ou libvirt.',
+    'modal.ip.t': 'IP privée (host-only)', 'modal.ip.d': 'L\u2019adresse pour joindre la VM depuis ton PC et pour que les VMs se parlent entre elles, sur un réseau isolé. Ex. <code>192.168.56.10</code>.',
+    'modal.port.t': 'port redirigé', 'modal.port.d': 'Rend un service de la VM accessible depuis ton PC : « guest 80 → host 8080 » = <code>localhost:8080</code> ouvre le port 80 de la VM.',
+    'modal.prov.t': 'provisioning', 'modal.prov.d': 'Les commandes lancées automatiquement au premier démarrage (installer nginx, Docker…). Utilise l\u2019aide « insérer une commande ».',
+    'modal.astuce': '<b>Astuce :</b> tu peux exporter ta config en JSON (bouton « Exporter ») pour la sauvegarder ou la partager, et la réimporter plus tard. Le bouton <b>« Télécharger le projet »</b> te donne tout le code (web + CLI + API) dans une archive.',
+
+    // Libellés de la carte VM (générés en JS)
+    'vm.nom': 'Nom de la VM',
+    'vm.os': "Système d'exploitation (OS)",
+    'vm.os.tip': "L'image de départ de la VM. Choisis par son nom : « Debian 12 » = la version stable actuelle. Les images bento marchent aussi sous VMware.",
+    'vm.version': "Version de l'image",
+    'vm.version.tip': "Laisse « dernière » pour la plus récente. Fige un numéro pour un lab 100 % reproductible dans le temps. Format propre à chaque box (ex: 12.20240905.1 pour Debian) — utilise le bouton pour voir les vraies versions publiées.",
+    'vm.ram': 'Mémoire vive (RAM)',
+    'vm.cpu': 'Processeurs (vCPU)',
+    'vm.langue': 'Langue & clavier de la VM',
+    'vm.langue.tip': 'Règle la langue du système et la disposition du clavier au premier démarrage (familles Debian/Ubuntu). Pratique pour un clavier AZERTY.',
+    'vm.ip': 'IP privée (réseau host-only)',
+    'vm.ip.tip': 'Adresse fixe pour joindre la VM depuis ton PC et entre VMs, sur un réseau isolé. Laisse vide pour une IP automatique.',
+    'vm.provider': 'Provider spécifique (sinon : global)',
+    'vm.gui': 'Afficher la fenêtre de la VM (utile pour debug)',
+    'vm.pont': 'Interface en pont (public_network) — la VM sur ton vrai réseau',
+    'vm.dossier': 'Dossier partagé PC → /vagrant',
+    'vm.dossier.tip': "Un dossier de ton PC visible dans la VM sous /vagrant. Pratique pour éditer du code côté PC et l'exécuter dans la VM.",
+    'vm.dossier_off': 'Désactiver le dossier partagé (contourne un bug du plugin VMware récent)',
+    'vm.winrm_user': 'WinRM — utilisateur', 'vm.winrm_pass': 'WinRM — mot de passe',
+    'vm.admin_pass': 'Mot de passe Administrator',
+    'vm.ssh_user': 'SSH — utilisateur', 'vm.ssh_pass': 'SSH — mot de passe',
+    'vm.root_pass': 'Mot de passe root (login console/GUI)',
+    'vm.ports': 'Ports redirigés (VM → PC)',
+    'vm.ports.tip': 'Rend un service de la VM accessible depuis ton PC. Ex. guest 80 → host 8080 : http://localhost:8080 ouvre le port 80 de la VM.',
+    'vm.disques': 'Disques additionnels',
+    'vm.disques.tip': "Ajoute un disque virtuel supplémentaire à la VM (en plus du disque système). Utile pour du stockage de données séparé. VirtualBox et libvirt uniquement.",
+    'vm.provision': 'Provisioning — que faire au démarrage ?',
+    'vm.aide_cmd': 'Aide : insérer une commande toute prête',
+    'vm.aide_cmd.tip': "Choisis une commande courante, elle s'ajoute au script ci-dessous. Tu peux en empiler plusieurs.",
+    'vm.script': 'Script shell (lancé en root au 1er démarrage)',
+    'vm.playbook': 'Chemin du playbook',
+  },
+
+  en: {
+    'nav.theme': 'Toggle light/dark theme',
+    'nav.aide': 'How it works',
+    'nav.partager': 'Share',
+    'nav.inventaire': 'Ansible inventory',
+    'nav.importer': 'Import',
+    'nav.exporter': 'Export',
+    'nav.installer': 'Install the app',
+    'nav.telecharger': 'Download the project',
+    'nav.lang': 'Français',
+
+    'hero.badge': 'Vagrantfile generator · CasaOS style',
+    'hero.titre1': 'Forge your VM labs',
+    'hero.titre2': 'without writing a line of Ruby',
+    'hero.sous': "Describe your machines in the form — VagrantForge writes the Vagrantfile, validated, commented and ready for vagrant up. Everything runs in your browser.",
+    'hero.commencer': 'Get started',
+    'hero.telecharger': 'Download the project',
+    'feat.multivm.t': 'Multi-VM', 'feat.multivm.d': 'As many machines as you need',
+    'feat.lang.t': 'Language & keyboard', 'feat.lang.d': 'Set on first boot',
+    'feat.presets.t': 'Presets', 'feat.presets.d': 'Ready-to-use labs',
+    'feat.valid.t': 'Live validation', 'feat.valid.d': 'Errors & warnings in real time',
+
+    'tabs.config': 'Configuration', 'tabs.apercu': 'Preview',
+
+    'g.titre': 'Global settings',
+    'g.provider': 'Virtualization software (provider)',
+    'g.provider.tip': "The software that runs the VMs on your machine. VirtualBox is free and the most common — pick it if unsure.",
+    'g.provider.vb': 'VirtualBox — free, most common',
+    'g.provider.vm': 'VMware Desktop — paid, fast',
+    'g.provider.lv': 'libvirt (KVM/QEMU) — Linux',
+    'g.boxcheck': 'Check for image updates on start',
+    'g.boxcheck.tip': 'If checked, Vagrant checks for a newer image version on every "vagrant up". Unchecked = faster, reproducible boot.',
+    'g.subnet': 'Private network — address range',
+    'g.subnet.tip': 'VMs talk to each other and to your PC on this isolated (host-only) network. Each VM gets an address here: .10, .11, .12…',
+    'g.subnet.hint': "This is a <b>private</b> network between your PC and the VMs (nothing to do with the Internet). Each VM added gets the next address: 192.168.56.<b>10</b>, .<b>11</b>, .<b>12</b>…",
+
+    'p.titre': 'Quick starts', 'p.vider': 'clear all',
+    'v.titre': 'Virtual machines', 'v.ajouter': 'add a VM',
+
+    'term.copier': 'copy', 'term.telecharger': 'download', 'term.copie': 'copied ✓', 'term.lien_copie': 'link copied ✓',
+
+    'footer': 'Forged with <span class="grad"><i class="fa-solid fa-hammer"></i> VagrantForge</span> — describe, validate, <code>vagrant up</code>.',
+
+    'modal.titre': 'How it works',
+    'modal.intro': 'VagrantForge builds a <b>Vagrantfile</b>: the blueprint for your virtual machines. Fill in the form, the file generates itself on the right.',
+    'modal.etapes': 'In 4 steps',
+    'modal.etape1': 'Pick your <b>provider</b> (VirtualBox if unsure) in the global settings.',
+    'modal.etape2': '<b>Add VMs</b>: their OS, RAM, network, language, what they install on boot.',
+    'modal.etape3': 'The <b>Vagrantfile</b> appears on the right, syntax-highlighted and validated live.',
+    'modal.etape4': '<b>Download it</b> into an empty folder, open a terminal there and run <code>vagrant up</code>. That\u2019s it.',
+    'modal.vocab': 'Vocabulary',
+    'modal.box.t': 'box (image)', 'modal.box.d': 'The starting disk of a VM (e.g. Debian 12). VagrantForge offers the real public images, by their full name.',
+    'modal.provider.t': 'provider', 'modal.provider.d': 'The software that runs the VMs on your PC: VirtualBox, VMware, or libvirt.',
+    'modal.ip.t': 'private IP (host-only)', 'modal.ip.d': 'The address to reach the VM from your PC, and for VMs to talk to each other, on an isolated network. E.g. <code>192.168.56.10</code>.',
+    'modal.port.t': 'forwarded port', 'modal.port.d': 'Makes a VM service reachable from your PC: "guest 80 → host 8080" = <code>localhost:8080</code> opens port 80 of the VM.',
+    'modal.prov.t': 'provisioning', 'modal.prov.d': 'Commands run automatically on first boot (install nginx, Docker…). Use the "insert a command" helper.',
+    'modal.astuce': '<b>Tip:</b> you can export your config as JSON ("Export" button) to save or share it, and re-import it later. The <b>"Download the project"</b> button gives you all the code (web + CLI + API) in one archive.',
+
+    'vm.nom': 'VM name',
+    'vm.os': 'Operating system (OS)',
+    'vm.os.tip': 'The VM\u2019s starting image. Pick by name: "Debian 12" = the current stable release. Bento images also work under VMware.',
+    'vm.version': 'Image version',
+    'vm.version.tip': 'Leave "latest" for the newest. Pin a number for a lab that stays 100% reproducible over time. Format is specific to each box (e.g. 12.20240905.1 for Debian) — use the button to see the real published versions.',
+    'vm.ram': 'Memory (RAM)',
+    'vm.cpu': 'Processors (vCPU)',
+    'vm.langue': 'VM language & keyboard',
+    'vm.langue.tip': 'Sets the system language and keyboard layout on first boot (Debian/Ubuntu families). Handy for a non-US keyboard layout.',
+    'vm.ip': 'Private IP (host-only network)',
+    'vm.ip.tip': 'Fixed address to reach the VM from your PC and between VMs, on an isolated network. Leave empty for an automatic IP.',
+    'vm.provider': 'VM-specific provider (else: global)',
+    'vm.gui': 'Show the VM window (useful for debugging)',
+    'vm.pont': 'Bridged interface (public_network) — VM on your real network',
+    'vm.dossier': 'Shared folder PC → /vagrant',
+    'vm.dossier.tip': 'A folder from your PC visible inside the VM at /vagrant. Handy for editing code on your PC and running it in the VM.',
+    'vm.dossier_off': 'Disable the shared folder (works around a recent VMware plugin bug)',
+    'vm.winrm_user': 'WinRM — username', 'vm.winrm_pass': 'WinRM — password',
+    'vm.admin_pass': 'Administrator password',
+    'vm.ssh_user': 'SSH — username', 'vm.ssh_pass': 'SSH — password',
+    'vm.root_pass': 'Root password (console/GUI login)',
+    'vm.ports': 'Forwarded ports (VM → PC)',
+    'vm.ports.tip': 'Makes a VM service reachable from your PC. E.g. guest 80 → host 8080: http://localhost:8080 opens port 80 of the VM.',
+    'vm.disques': 'Additional disks',
+    'vm.disques.tip': 'Adds an extra virtual disk to the VM (besides the system disk). Useful for separate data storage. VirtualBox and libvirt only.',
+    'vm.provision': 'Provisioning — what to do on boot?',
+    'vm.aide_cmd': 'Help: insert a ready-made command',
+    'vm.aide_cmd.tip': 'Pick a common command, it gets appended to the script below. You can stack several.',
+    'vm.script': 'Shell script (run as root on first boot)',
+    'vm.playbook': 'Playbook path',
+  },
+};
+
+const CLE_LANGUE = 'vagrantforge.lang';
+
+function langueInitiale(){
+  try{ const s = localStorage.getItem(CLE_LANGUE); if(s) return s; }catch(e){}
+  return (navigator.language || 'fr').toLowerCase().startsWith('en') ? 'en' : 'fr';
+}
+
+let LANGUE_COURANTE = langueInitiale();
+
+function t(cle){
+  const dico = I18N[LANGUE_COURANTE] || I18N.fr;
+  return (dico[cle] !== undefined ? dico[cle] : (I18N.fr[cle] !== undefined ? I18N.fr[cle] : cle));
+}
+
+/* Applique la langue courante à tous les éléments statiques marqués
+ * data-i18n / data-i18n-title / data-i18n-placeholder dans le DOM. */
+function appliquerI18nStatique(racine){
+  const scope = racine || document;
+  scope.querySelectorAll('[data-i18n]').forEach(el=>{
+    const html = t(el.getAttribute('data-i18n'));
+    el.innerHTML = html;
+  });
+  scope.querySelectorAll('[data-i18n-title]').forEach(el=>{
+    el.setAttribute('title', t(el.getAttribute('data-i18n-title')));
+  });
+  scope.querySelectorAll('[data-i18n-placeholder]').forEach(el=>{
+    el.setAttribute('placeholder', t(el.getAttribute('data-i18n-placeholder')));
+  });
+  document.documentElement.lang = LANGUE_COURANTE;
+}
+
+function basculerLangue(){
+  LANGUE_COURANTE = LANGUE_COURANTE === 'fr' ? 'en' : 'fr';
+  try{ localStorage.setItem(CLE_LANGUE, LANGUE_COURANTE); }catch(e){}
+  appliquerI18nStatique();
+  const btn = document.getElementById('lang-btn');
+  if(btn) btn.textContent = t('nav.lang');
+  const btnMobile = document.getElementById('lang-btn-mobile');
+  if(btnMobile) btnMobile.textContent = t('nav.lang');
+  if(typeof rendre === 'function') rendre();
+}

@@ -11,6 +11,34 @@ function estBoxWindows(v){
   return PREFIXES_BOX_WINDOWS.some(p => box.startsWith(p));
 }
 
+function blocDisques(vn, provider, disques){
+  disques = (disques||[]).filter(d=>d && d.sizeGb);
+  if(!disques.length) return '';
+  let o = '';
+  if(provider==='virtualbox'){
+    disques.forEach((d,i)=>{
+      const nomDisque = d.name || `disque${i+1}`;
+      const tailleMo = parseInt(d.sizeGb)*1024;
+      const fichier = escRuby(`${vn}_${nomDisque}_${i}.vdi`);
+      o += `    ${vn}.vm.provider "virtualbox" do |vb|\n`;
+      o += `      disque_${i} = File.join(Dir.pwd, ".vagrant", "disques", "${fichier}")\n`;
+      o += `      FileUtils.mkdir_p(File.dirname(disque_${i})) unless Dir.exist?(File.dirname(disque_${i}))\n`;
+      o += `      vb.customize ["createhd", "--filename", disque_${i}, "--size", ${tailleMo}] unless File.exist?(disque_${i})\n`;
+      o += `      vb.customize ["storageattach", :id, "--storagectl", "SATA Controller", "--port", ${i+1}, "--device", 0, "--type", "hdd", "--medium", disque_${i}]\n`;
+      o += `    end\n`;
+    });
+  } else if(provider==='libvirt'){
+    disques.forEach((d,i)=>{
+      const nomDisque = escRuby(d.name || `disque${i+1}`);
+      o += `    ${vn}.vm.provider "libvirt" do |lv|\n      lv.storage :file, size: "${parseInt(d.sizeGb)}G", path: "${nomDisque}-disque${i}.qcow2"\n    end\n`;
+    });
+  } else {
+    const noms = disques.map((d,i)=>d.name||`disque${i+1}`).join(', ');
+    o += `    # Disque(s) additionnel(s) demandé(s) (${noms}) : non automatisable avec le provider "${provider}" — à créer/attacher manuellement.\n`;
+  }
+  return o;
+}
+
 function blocLocale(vn, locale, keymap){
   if(!locale && !keymap) return '';
   let s = '      # ── Langue & clavier (familles Debian/Ubuntu) ──\n      export DEBIAN_FRONTEND=noninteractive\n';
@@ -66,6 +94,8 @@ function buildVagrantfile(cfg){
       o += `    ${vn}.vm.provider "libvirt" do |lv|\n      lv.memory = ${v.memory}\n      lv.cpus = ${v.cpus}\n    end\n`;
     }
 
+    o += blocDisques(vn, prov, v.extraDisks);
+
     if(!windows) o += blocLocale(vn, v.locale, v.keymap);
 
     if(v.provisionType==='shell'){
@@ -90,7 +120,36 @@ function buildVagrantfile(cfg){
   return o;
 }
 
-/* Coloration Ruby + numéros de ligne (rendus par le CSS via .code/.cl). */
+/* Inventaire Ansible (INI) — miroir de core/generateur.py::construire_inventaire_ansible. */
+function groupeAnsible(nom){ const b=(nom||'').split(/[-_]/)[0]; return b||'vagrantforge'; }
+function buildAnsibleInventory(cfg){
+  const vms = cfg.vms||[];
+  if(!vms.length) return '# Aucune VM dans la config : inventaire vide.\n';
+  const groupes = {};
+  let o = '# Inventaire Ansible généré par VagrantForge — statique, format INI.\n';
+  o += '# Utilisation : ansible-playbook -i inventaire.ini playbook.yml\n\n';
+  o += "[tous:vars]\nansible_ssh_common_args='-o StrictHostKeyChecking=no'\n\n[tous]\n";
+  vms.forEach(v=>{
+    const nom=v.name||'vm', cible=v.ip||nom, windows=estBoxWindows(v);
+    const vars=[`ansible_host=${cible}`];
+    if(windows){
+      vars.push('ansible_connection=winrm','ansible_winrm_transport=basic','ansible_port=5985');
+      if(v.winrmUsername) vars.push(`ansible_user=${v.winrmUsername}`);
+      if(v.winrmPassword) vars.push(`ansible_password=${v.winrmPassword}`);
+    } else {
+      vars.push(`ansible_user=${v.sshUsername||'vagrant'}`);
+      if(v.sshPassword) vars.push(`ansible_password=${v.sshPassword}`);
+    }
+    o += `${nom} ${vars.join(' ')}\n`;
+    const g=groupeAnsible(nom); (groupes[g]=groupes[g]||[]).push(nom);
+  });
+  o += '\n';
+  Object.entries(groupes).forEach(([g,membres])=>{
+    if(membres.length<2 && g!=='vagrantforge') return;
+    o += `[${g}]\n${membres.join('\n')}\n\n`;
+  });
+  return o.replace(/\n+$/,'\n');
+}
 function highlightRuby(code){
   const lignes = code.split('\n').map(line=>{
     let l = line.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');

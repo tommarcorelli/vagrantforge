@@ -351,7 +351,7 @@ textarea{resize:vertical;min-height:96px;line-height:1.55;}
 /* Boutons / survols codés en blanc dur dans le thème clair */
 :root[data-theme="dark"] .btn.ghost:hover{ background:rgba(255,255,255,.1); }
 :root[data-theme="dark"] .btn.glass:hover{ background:rgba(255,255,255,.08); }
-:root[data-theme="dark"] code{ background:rgba(255,255,255,.08); }
+:root[data-theme="dark"] code{ background:rgba(255,255,255,.08); color:#8ab4ff; }
 
 /* Cartes presets / VM : fond blanc translucide codé en dur dans le thème
    clair → sur fond sombre le texte (var(--ink), devenu quasi blanc) devenait
@@ -373,5 +373,5 @@ textarea{resize:vertical;min-height:96px;line-height:1.55;}
 :root[data-theme="dark"] .partage-note{ color:#7ee8a8; background:rgba(52,199,89,.14); }
 :root[data-theme="dark"] .notice-windows{ background:rgba(50,173,230,.16); }
 
-/* Disques additionnels : réutilise le style des lignes de ports */
+/* ── Disques additionnels : réutilise le style des lignes de ports ── */
 .ports-list + .btn-row{ margin-top:8px; }

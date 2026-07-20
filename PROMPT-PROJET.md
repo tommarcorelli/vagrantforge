@@ -122,8 +122,8 @@ Test visuel headless (Chrome) : `--headless=new --screenshot=out.png "file:///..
 
 ## 🚀 Futures améliorations (roadmap)
 
-### ⭐ Prioritaire — PWA installable + logo néon
-- [ ] **Transformer en PWA** (comme [[projet-linuxdojo]] / [[projet-annuaire]]) :
+### ⭐ Prioritaire — PWA installable + logo néon — **FAIT**
+- [x] **Transformer en PWA** (comme [[projet-linuxdojo]] / [[projet-annuaire]]) :
   - `manifest.webmanifest` : name « VagrantForge », short_name « Forge »,
     `display:standalone`, `theme_color:#070a10`, `background_color:#070a10`,
     start_url `./index.html`, icônes 192 + 512.
@@ -131,29 +131,43 @@ Test visuel headless (Chrome) : `--headless=new --screenshot=out.png "file:///..
     → l'appli marche **sans connexion** et devient **installable** (bouton « installer »).
   - Enregistrement du SW dans `app.js` (`navigator.serviceWorker.register`).
   - ⚠️ un SW ne s'active pas en `file://` : tester via `py web/api/main.py` ou un
-    petit serveur statique. Prévoir un bouton « Installer l'appli » quand
-    `beforeinstallprompt` se déclenche.
-- [ ] **Logo néon stylé** : une enclume ⚒ « néon » (SVG) qui sert d'icône PWA et de
-  logo dans la nav. Effet néon = traits en dégradé `--brand` (vert→cyan→indigo) +
-  `filter: drop-shadow` multiples (halo) + léger flicker CSS. Décliner en PNG 192 &
-  512 pour les icônes (piège connu : rendre l'icône en 512 puis redimensionner —
-  voir [[chrome-headless-icones]]). Splash-friendly sur fond `#070a10`.
+    petit serveur statique. Bouton « Installer l'appli » câblé sur
+    `beforeinstallprompt`.
+- [x] **Logo néon stylé** : une enclume ⚒ « néon » (SVG, `icons/icon.svg`) qui sert
+  d'icône PWA (192 & 512, rendues avec cairosvg). Traits en dégradé
+  vert→cyan→violet + `filter` de halo. Fond `#070a10`.
 
 ### Fonctionnalités
-- [ ] **Preset Windows** (box `gusztavvargadr/windows-server`) — provisioning
-      PowerShell, pas shell : adapter `bloc_provision` / le générateur.
-- [ ] **Export `.zip` de projet** (Vagrantfile + arborescence des synced_folder +
-      petit README de lancement) au lieu du seul Vagrantfile.
-- [ ] **Disque additionnel** par VM (plugin `vagrant-disksize` ou disque libvirt).
-- [ ] Générer en plus un **`ansible/inventory`** ou un `docker-compose` équivalent.
-- [ ] **Thème clair** / bascule de thème (déjà tout en variables CSS → facile).
-- [ ] **i18n** : externaliser les textes pour un futur mode anglais.
-- [ ] Vérifier l'existence réelle des box via l'API **Vagrant Cloud** (au lieu de la
-      table statique `BOX_PROVIDERS`).
+- [x] **Preset Windows** (`windows-ad` : contrôleur AD + client, box
+      `gusztavvargadr/windows-*`) — provisioning PowerShell, WinRM automatique.
+- [x] **Export `.zip` de projet** (Vagrantfile + arborescence des synced_folder +
+      petit README de lancement) — `core/export_projet.py`, `forge exporter`,
+      `POST /api/exporter`.
+- [x] **Disque additionnel** par VM — `extra_disks`, VirtualBox (`createhd`/
+      `storageattach` idempotent) et libvirt (`lv.storage`).
+- [x] Générer en plus un **inventaire Ansible** (INI, groupes auto par préfixe) —
+      `construire_inventaire_ansible`, `forge inventaire`, `POST /api/inventaire`.
+      (`docker-compose` équivalent non fait — hors-sujet Vagrant, laissé de côté.)
+- [x] **Thème clair/sombre** / bascule persistante — `[data-theme]` + `theme-btn`.
+- [x] **i18n** : bascule FR/EN de l'interface — `js/i18n.js` (dictionnaire +
+      `t()` + `appliquerI18nStatique()`), bouton « English »/« Français » dans
+      la nav et le menu mobile, persisté comme le thème. Couvre : nav, hero,
+      réglages globaux, sections, formulaire de VM (tous les libellés),
+      modale d'aide, footer. **Restent volontairement en français** (gros
+      chantiers à part, cf. commentaire en tête de `i18n.js`) : les messages
+      de validation venant du cœur (`schema.py`/`validation.js`) et le
+      contenu généré dans le Vagrantfile (commentaires, scripts).
+- [x] Vérifier l'existence réelle des box via l'API **Vagrant Cloud** — déjà
+      fait via `forge verifier-box` / `verif_box.py` (comparaison ponctuelle,
+      pas de vérif automatique à chaque génération — resterait à faire si
+      besoin, mais le principal est en place).
 
 ### Diffusion
-- [ ] **GitHub Pages** : publier `web/frontend/` pour une URL partageable cliquable.
-- [ ] Bouton « Copier le lien de partage » (config encodée en base64 dans l'URL).
+- [x] **GitHub Pages** : `.github/workflows/deploy-pages.yml` publie
+      `web/frontend/` à chaque push sur `main` (Settings → Pages → Source :
+      "GitHub Actions", à activer une fois côté dépôt). `.nojekyll` ajouté.
+- [x] Bouton « Copier le lien de partage » (config encodée en base64 dans l'URL,
+      `#cfg=...`) — `partagerLien()` / bouton « Partager ».
 
 ## Rappel avant de committer / partager
 1. Modif du cœur ? → répercuter dans les JS `js/generateur.js` / `js/validation.js` /

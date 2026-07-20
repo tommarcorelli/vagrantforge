@@ -10,6 +10,10 @@
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800;900&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <link rel="stylesheet" href="css/style.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#070a10">
+<link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
 </head>
 <body data-vue="config">
 
@@ -23,45 +27,53 @@
     <span class="txt">VagrantForge</span>
   </span>
   <div class="actions">
-    <button class="btn ghost" id="aide-btn" data-testid="help-btn"><i class="fa-regular fa-circle-question"></i> Comment ça marche</button>
-    <button class="btn ghost" id="import-btn" data-testid="import-btn"><i class="fa-solid fa-file-import"></i> Importer</button>
-    <button class="btn ghost" id="export-btn" data-testid="export-btn"><i class="fa-solid fa-file-export"></i> Exporter</button>
-    <a class="btn primary" href="#app" id="dl-project-btn" data-testid="download-project-btn"><i class="fa-solid fa-download"></i> Télécharger le projet</a>
+    <button class="btn ghost" id="theme-btn" data-testid="theme-btn" data-i18n-title="nav.theme" data-i18n-aria="nav.theme" title="Basculer thème clair/sombre" aria-label="Basculer thème clair/sombre"><i class="fa-solid fa-moon"></i></button>
+    <button class="btn ghost" id="lang-btn" data-testid="lang-btn">English</button>
+    <button class="btn ghost" id="aide-btn" data-testid="help-btn"><i class="fa-regular fa-circle-question"></i> <span data-i18n="nav.aide">Comment ça marche</span></button>
+    <button class="btn ghost" id="partage-btn" data-testid="share-btn"><i class="fa-solid fa-share-nodes"></i> <span data-i18n="nav.partager">Partager</span></button>
+    <button class="btn ghost" id="inventaire-btn" data-testid="inventaire-btn"><i class="fa-solid fa-list-check"></i> <span data-i18n="nav.inventaire">Inventaire Ansible</span></button>
+    <button class="btn ghost" id="import-btn" data-testid="import-btn"><i class="fa-solid fa-file-import"></i> <span data-i18n="nav.importer">Importer</span></button>
+    <button class="btn ghost" id="export-btn" data-testid="export-btn"><i class="fa-solid fa-file-export"></i> <span data-i18n="nav.exporter">Exporter</span></button>
+    <button class="btn ghost" id="install-btn" data-testid="install-btn" hidden><i class="fa-solid fa-arrow-down-to-bracket"></i> <span data-i18n="nav.installer">Installer l'appli</span></button>
+    <a class="btn primary" href="#app" id="dl-project-btn" data-testid="download-project-btn"><i class="fa-solid fa-download"></i> <span data-i18n="nav.telecharger">Télécharger le projet</span></a>
     <input type="file" id="import-file" accept="application/json,.json" hidden>
   </div>
   <button class="hamburger" id="hamburger" aria-label="menu"><i class="fa-solid fa-bars"></i></button>
   <div class="menu-mobile" id="menu-mobile">
     <a class="btn ghost" href="#app" data-testid="download-project-btn-mobile"><i class="fa-solid fa-download"></i> Télécharger le projet</a>
     <button class="btn ghost" data-menu="aide"><i class="fa-regular fa-circle-question"></i> Comment ça marche</button>
+    <button class="btn ghost" data-menu="partage"><i class="fa-solid fa-share-nodes"></i> Partager le lien</button>
+    <button class="btn ghost" data-menu="inventaire"><i class="fa-solid fa-list-check"></i> Inventaire Ansible</button>
     <button class="btn ghost" data-menu="import"><i class="fa-solid fa-file-import"></i> Importer JSON</button>
     <button class="btn ghost" data-menu="export"><i class="fa-solid fa-file-export"></i> Exporter JSON</button>
+    <button class="btn ghost" data-menu="lang"><i class="fa-solid fa-language"></i> <span id="lang-btn-mobile">English</span></button>
   </div>
 </nav>
 
 <!-- ── Hero ── -->
 <header class="hero">
   <div class="hero-inner">
-    <div class="hero-badge" data-testid="hero-badge"><i class="fa-solid fa-hammer"></i> Générateur de Vagrantfile · style CasaOS</div>
-    <h1 class="hero-title">Forge tes labs de VMs<br><span class="grad">sans écrire une ligne de Ruby</span></h1>
-    <p class="hero-sub">Décris tes machines dans le formulaire — VagrantForge écrit le <code>Vagrantfile</code>, validé, commenté et prêt à <code>vagrant up</code>. Tout tourne dans ton navigateur.</p>
+    <div class="hero-badge" data-testid="hero-badge"><i class="fa-solid fa-hammer"></i> <span data-i18n="hero.badge">Générateur de Vagrantfile · style CasaOS</span></div>
+    <h1 class="hero-title"><span data-i18n="hero.titre1">Forge tes labs de VMs</span><br><span class="grad" data-i18n="hero.titre2">sans écrire une ligne de Ruby</span></h1>
+    <p class="hero-sub" data-i18n="hero.sous">Décris tes machines dans le formulaire — VagrantForge écrit le <code>Vagrantfile</code>, validé, commenté et prêt à <code>vagrant up</code>. Tout tourne dans ton navigateur.</p>
     <div class="hero-cta">
-      <a class="btn primary btn-lg" href="#app" data-testid="start-btn">Commencer <i class="fa-solid fa-arrow-right"></i></a>
-      <a class="btn glass btn-lg" href="#app" data-testid="hero-download-btn"><i class="fa-solid fa-box-archive"></i> Télécharger le projet</a>
+      <a class="btn primary btn-lg" href="#app" data-testid="start-btn"><span data-i18n="hero.commencer">Commencer</span> <i class="fa-solid fa-arrow-right"></i></a>
+      <a class="btn glass btn-lg" href="#app" data-testid="hero-download-btn"><i class="fa-solid fa-box-archive"></i> <span data-i18n="hero.telecharger">Télécharger le projet</span></a>
     </div>
 
     <div class="hero-features">
-      <div class="feature-tile" data-testid="feature-multivm"><span class="ic ic-blue"><i class="fa-solid fa-server"></i></span><b>Multi-VM</b><span>Autant de machines que tu veux</span></div>
-      <div class="feature-tile" data-testid="feature-lang"><span class="ic ic-green"><i class="fa-solid fa-keyboard"></i></span><b>Langue & clavier</b><span>AZERTY réglé au 1er boot</span></div>
-      <div class="feature-tile" data-testid="feature-presets"><span class="ic ic-amber"><i class="fa-solid fa-bolt"></i></span><b>Presets</b><span>Labs prêts à l'emploi</span></div>
-      <div class="feature-tile" data-testid="feature-valid"><span class="ic ic-violet"><i class="fa-solid fa-circle-check"></i></span><b>Validation live</b><span>Erreurs & alertes en direct</span></div>
+      <div class="feature-tile" data-testid="feature-multivm"><span class="ic ic-blue"><i class="fa-solid fa-server"></i></span><b data-i18n="feat.multivm.t">Multi-VM</b><span data-i18n="feat.multivm.d">Autant de machines que tu veux</span></div>
+      <div class="feature-tile" data-testid="feature-lang"><span class="ic ic-green"><i class="fa-solid fa-keyboard"></i></span><b data-i18n="feat.lang.t">Langue & clavier</b><span data-i18n="feat.lang.d">AZERTY réglé au 1er boot</span></div>
+      <div class="feature-tile" data-testid="feature-presets"><span class="ic ic-amber"><i class="fa-solid fa-bolt"></i></span><b data-i18n="feat.presets.t">Presets</b><span data-i18n="feat.presets.d">Labs prêts à l'emploi</span></div>
+      <div class="feature-tile" data-testid="feature-valid"><span class="ic ic-violet"><i class="fa-solid fa-circle-check"></i></span><b data-i18n="feat.valid.t">Validation live</b><span data-i18n="feat.valid.d">Erreurs & alertes en direct</span></div>
     </div>
   </div>
 </header>
 
 <!-- ── Onglets mobile ── -->
 <div class="mobile-tabs">
-  <button data-vue="config" class="actif"><i class="fa-solid fa-sliders"></i> Configuration</button>
-  <button data-vue="apercu"><i class="fa-solid fa-file-code"></i> Aperçu</button>
+  <button data-vue="config" class="actif"><i class="fa-solid fa-sliders"></i> <span data-i18n="tabs.config">Configuration</span></button>
+  <button data-vue="apercu"><i class="fa-solid fa-file-code"></i> <span data-i18n="tabs.apercu">Aperçu</span></button>
 </div>
 
 <!-- ── Application ── -->
@@ -70,35 +82,35 @@
   <div class="config-pane">
 
     <section class="block" data-testid="global-settings">
-      <div class="block-head"><span class="titre"><span class="num">1</span>Réglages globaux</span></div>
+      <div class="block-head"><span class="titre"><span class="num">1</span><span data-i18n="g.titre">Réglages globaux</span></span></div>
       <div class="block-body">
-        <label>Logiciel de virtualisation (provider)
-          <span class="info" title="Le logiciel qui fait tourner les VMs sur ta machine. VirtualBox est gratuit et le plus répandu — choisis-le en cas de doute.">i</span>
+        <label data-i18n="g.provider">Logiciel de virtualisation (provider)
+          <span class="info" data-i18n-title="g.provider.tip" title="Le logiciel qui fait tourner les VMs sur ta machine. VirtualBox est gratuit et le plus répandu — choisis-le en cas de doute.">i</span>
         </label>
         <select id="g-provider" data-testid="global-provider">
-          <option value="virtualbox">VirtualBox — gratuit, le plus courant</option>
-          <option value="vmware_desktop">VMware Desktop — payant, rapide</option>
-          <option value="libvirt">libvirt (KVM/QEMU) — Linux</option>
+          <option value="virtualbox" data-i18n="g.provider.vb">VirtualBox — gratuit, le plus courant</option>
+          <option value="vmware_desktop" data-i18n="g.provider.vm">VMware Desktop — payant, rapide</option>
+          <option value="libvirt" data-i18n="g.provider.lv">libvirt (KVM/QEMU) — Linux</option>
         </select>
 
         <div class="checkbox-row">
           <input type="checkbox" id="g-boxcheck">
-          <label>Vérifier les mises à jour des images au démarrage
-            <span class="info" title="Si coché, Vagrant vérifie une nouvelle version de l'image à chaque « vagrant up ». Décoché = démarrage plus rapide et reproductible.">i</span>
+          <label data-i18n="g.boxcheck">Vérifier les mises à jour des images au démarrage
+            <span class="info" data-i18n-title="g.boxcheck.tip" title="Si coché, Vagrant vérifie une nouvelle version de l'image à chaque « vagrant up ». Décoché = démarrage plus rapide et reproductible.">i</span>
           </label>
         </div>
 
-        <label>Réseau privé — plage d'adresses
-          <span class="info" title="Les VMs communiquent entre elles et avec ton PC sur ce réseau isolé (host-only). Chaque VM prend une adresse ici : .10, .11, .12…">i</span>
+        <label data-i18n="g.subnet">Réseau privé — plage d'adresses
+          <span class="info" data-i18n-title="g.subnet.tip" title="Les VMs communiquent entre elles et avec ton PC sur ce réseau isolé (host-only). Chaque VM prend une adresse ici : .10, .11, .12…">i</span>
         </label>
         <input type="text" id="g-subnet" value="192.168.56" data-testid="global-subnet">
-        <div class="hint">C'est un réseau <b>privé</b> entre ton PC et les VMs (rien à voir avec Internet). Chaque VM ajoutée reçoit l'adresse suivante : 192.168.56.<b>10</b>, .<b>11</b>, .<b>12</b>…</div>
+        <div class="hint" data-i18n="g.subnet.hint">C'est un réseau <b>privé</b> entre ton PC et les VMs (rien à voir avec Internet). Chaque VM ajoutée reçoit l'adresse suivante : 192.168.56.<b>10</b>, .<b>11</b>, .<b>12</b>…</div>
       </div>
     </section>
 
     <section class="block" data-testid="presets-block">
-      <div class="block-head"><span class="titre"><span class="num">2</span>Démarrages rapides</span>
-        <button class="btn ghost small danger" data-preset="clear" data-testid="clear-btn"><i class="fa-solid fa-trash-can"></i> tout vider</button>
+      <div class="block-head"><span class="titre"><span class="num">2</span><span data-i18n="p.titre">Démarrages rapides</span></span>
+        <button class="btn ghost small danger" data-preset="clear" data-testid="clear-btn"><i class="fa-solid fa-trash-can"></i> <span data-i18n="p.vider">tout vider</span></button>
       </div>
       <div class="block-body">
         <div class="presets-grid" id="presets-grid"></div>
@@ -106,10 +118,10 @@
     </section>
 
     <section class="block" data-testid="vms-block">
-      <div class="block-head"><span class="titre"><span class="num">3</span>Machines virtuelles</span></div>
+      <div class="block-head"><span class="titre"><span class="num">3</span><span data-i18n="v.titre">Machines virtuelles</span></span></div>
       <div class="block-body">
         <div id="vm-list"></div>
-        <button class="btn btn-add" id="add-vm" data-testid="add-vm-btn"><i class="fa-solid fa-plus"></i> ajouter une VM</button>
+        <button class="btn btn-add" id="add-vm" data-testid="add-vm-btn"><i class="fa-solid fa-plus"></i> <span data-i18n="v.ajouter">ajouter une VM</span></button>
       </div>
     </section>
 
@@ -120,10 +132,10 @@
       <div class="term-bar">
         <div class="dots"><span></span><span></span><span></span></div>
         <span class="filename">Vagrantfile</span>
-        <span class="copied-flash" id="flash">copié ✓</span>
+        <span class="copied-flash" id="flash" data-i18n="term.copie">copié ✓</span>
         <div class="term-actions">
-          <button class="btn ghost small" id="copy-btn" data-testid="copy-btn"><i class="fa-regular fa-copy"></i> copier</button>
-          <button class="btn primary small" id="dl-btn" data-testid="download-vagrantfile-btn"><i class="fa-solid fa-download"></i> télécharger</button>
+          <button class="btn ghost small" id="copy-btn" data-testid="copy-btn"><i class="fa-regular fa-copy"></i> <span data-i18n="term.copier">copier</span></button>
+          <button class="btn primary small" id="dl-btn" data-testid="download-vagrantfile-btn"><i class="fa-solid fa-download"></i> <span data-i18n="term.telecharger">télécharger</span></button>
         </div>
       </div>
       <div class="term-body" id="output" data-testid="vagrantfile-output"></div>
@@ -134,40 +146,41 @@
 
 </main>
 
-<footer class="footer">Forgé avec <span class="grad"><i class="fa-solid fa-hammer"></i> VagrantForge</span> — décris, valide, <code>vagrant up</code>.</footer>
+<footer class="footer" data-i18n="footer">Forgé avec <span class="grad"><i class="fa-solid fa-hammer"></i> VagrantForge</span> — décris, valide, <code>vagrant up</code>.</footer>
 
 <!-- ── Modale d'aide ── -->
 <div class="overlay" id="overlay">
   <div class="modal">
     <div class="modal-head">
-      <h2><i class="fa-solid fa-hammer"></i> Comment ça marche</h2>
-      <button class="modal-close" id="modal-close" data-testid="modal-close">×</button>
+      <h2><i class="fa-solid fa-hammer"></i> <span data-i18n="modal.titre">Comment ça marche</span></h2>
+      <button class="modal-close" id="modal-close" data-testid="modal-close" aria-label="Fermer">×</button>
     </div>
     <div class="modal-body">
-      <p>VagrantForge fabrique un <b>Vagrantfile</b> : le plan de montage de tes machines virtuelles. Tu remplis un formulaire, le fichier se génère tout seul à droite.</p>
+      <p data-i18n="modal.intro">VagrantForge fabrique un <b>Vagrantfile</b> : le plan de montage de tes machines virtuelles. Tu remplis un formulaire, le fichier se génère tout seul à droite.</p>
 
-      <h3>En 4 étapes</h3>
+      <h3 data-i18n="modal.etapes">En 4 étapes</h3>
       <ol class="steps">
-        <li>Choisis ton <b>provider</b> (VirtualBox si tu ne sais pas) dans les réglages globaux.</li>
-        <li><b>Ajoute des VMs</b> : leur OS, leur RAM, leur réseau, leur langue, ce qu'elles installent au démarrage.</li>
-        <li>Le <b>Vagrantfile</b> apparaît à droite, coloré et validé en temps réel.</li>
-        <li><b>Télécharge-le</b> dans un dossier vide, ouvre un terminal dedans et lance <code>vagrant up</code>. C'est parti.</li>
+        <li data-i18n="modal.etape1">Choisis ton <b>provider</b> (VirtualBox si tu ne sais pas) dans les réglages globaux.</li>
+        <li data-i18n="modal.etape2"><b>Ajoute des VMs</b> : leur OS, leur RAM, leur réseau, leur langue, ce qu'elles installent au démarrage.</li>
+        <li data-i18n="modal.etape3">Le <b>Vagrantfile</b> apparaît à droite, coloré et validé en temps réel.</li>
+        <li data-i18n="modal.etape4"><b>Télécharge-le</b> dans un dossier vide, ouvre un terminal dedans et lance <code>vagrant up</code>. C'est parti.</li>
       </ol>
 
-      <h3>Le vocabulaire</h3>
+      <h3 data-i18n="modal.vocab">Le vocabulaire</h3>
       <dl class="glossaire">
-        <dt>box (image)</dt><dd>Le disque de départ d'une VM (ex. Debian 12). VagrantForge te propose les vraies images publiques, par leur nom complet.</dd>
-        <dt>provider</dt><dd>Le logiciel qui exécute les VMs sur ton PC : VirtualBox, VMware ou libvirt.</dd>
-        <dt>IP privée (host-only)</dt><dd>L'adresse pour joindre la VM depuis ton PC et pour que les VMs se parlent entre elles, sur un réseau isolé. Ex. <code>192.168.56.10</code>.</dd>
-        <dt>port redirigé</dt><dd>Rend un service de la VM accessible depuis ton PC : « guest 80 → host 8080 » = <code>localhost:8080</code> ouvre le port 80 de la VM.</dd>
-        <dt>provisioning</dt><dd>Les commandes lancées automatiquement au premier démarrage (installer nginx, Docker…). Utilise l'aide « insérer une commande ».</dd>
+        <dt data-i18n="modal.box.t">box (image)</dt><dd data-i18n="modal.box.d">Le disque de départ d'une VM (ex. Debian 12). VagrantForge te propose les vraies images publiques, par leur nom complet.</dd>
+        <dt data-i18n="modal.provider.t">provider</dt><dd data-i18n="modal.provider.d">Le logiciel qui exécute les VMs sur ton PC : VirtualBox, VMware ou libvirt.</dd>
+        <dt data-i18n="modal.ip.t">IP privée (host-only)</dt><dd data-i18n="modal.ip.d">L'adresse pour joindre la VM depuis ton PC et pour que les VMs se parlent entre elles, sur un réseau isolé. Ex. <code>192.168.56.10</code>.</dd>
+        <dt data-i18n="modal.port.t">port redirigé</dt><dd data-i18n="modal.port.d">Rend un service de la VM accessible depuis ton PC : « guest 80 → host 8080 » = <code>localhost:8080</code> ouvre le port 80 de la VM.</dd>
+        <dt data-i18n="modal.prov.t">provisioning</dt><dd data-i18n="modal.prov.d">Les commandes lancées automatiquement au premier démarrage (installer nginx, Docker…). Utilise l'aide « insérer une commande ».</dd>
       </dl>
 
-      <div class="partage-note"><i class="fa-solid fa-share-nodes"></i> <b>Astuce :</b> tu peux exporter ta config en JSON (bouton « Exporter ») pour la sauvegarder ou la partager, et la réimporter plus tard. Le bouton <b>« Télécharger le projet »</b> te donne tout le code (web + CLI + API) dans une archive.</div>
+      <div class="partage-note"><i class="fa-solid fa-share-nodes"></i> <span data-i18n="modal.astuce"><b>Astuce :</b> tu peux exporter ta config en JSON (bouton « Exporter ») pour la sauvegarder ou la partager, et la réimporter plus tard. Le bouton <b>« Télécharger le projet »</b> te donne tout le code (web + CLI + API) dans une archive.</span></div>
     </div>
   </div>
 </div>
 
+<script src="js/i18n.js"></script>
 <script src="js/donnees.js"></script>
 <script src="js/generateur.js"></script>
 <script src="js/validation.js"></script>

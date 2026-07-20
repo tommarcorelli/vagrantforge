@@ -233,6 +233,45 @@ def preset_nextcloud(sr="192.168.56"):
     }
 
 
+def preset_windows_ad(sr="192.168.56"):
+    """Lab Windows : contrôleur de domaine Active Directory + poste client.
+
+    Provisioning en PowerShell (WinRM) — VagrantForge bascule automatiquement
+    communicateur et script au format Windows dès qu'une box
+    `gusztavvargadr/windows-*` est détectée.
+    """
+    dc = _vm(
+        "win-dc", "gusztavvargadr/windows-server", 4096, 2, sr, 90,
+        script=(
+            "Install-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools\n"
+            "# Puis, en 2e passage (redémarrage requis) :\n"
+            "# Install-ADDSForest -DomainName 'lab.local' -InstallDns "
+            "-SafeModeAdministratorPassword (ConvertTo-SecureString 'ChangeMoi!2024' -AsPlainText -Force)\n"
+        ),
+    )
+    dc["guest_os"] = "windows"
+    dc["winrm_username"] = "vagrant"
+    dc["winrm_password"] = "vagrant"
+    dc["root_password"] = "ChangeMoi!2024"
+
+    client = _vm(
+        "win-client", "gusztavvargadr/windows-11", 4096, 2, sr, 91,
+        script=(
+            "# Rejoindre le domaine (une fois le DC prêt) :\n"
+            "# Add-Computer -DomainName 'lab.local' -Restart\n"
+        ),
+    )
+    client["guest_os"] = "windows"
+    client["winrm_username"] = "vagrant"
+    client["winrm_password"] = "vagrant"
+
+    return {
+        "provider": "virtualbox",
+        "box_check_update": False,
+        "vms": [dc, client],
+    }
+
+
 PRESETS = {
     "solo":           ("VM Debian unique", preset_solo),
     "k3s":            ("Cluster K3s (3 VMs)", preset_k3s),
@@ -244,6 +283,7 @@ PRESETS = {
     "wordpress":      ("WordPress + MariaDB", preset_wordpress),
     "gitlab-runner":  ("GitLab Runner + Docker", preset_gitlab_runner),
     "nextcloud":      ("Nextcloud + MariaDB", preset_nextcloud),
+    "windows-ad":     ("Windows : DC Active Directory + client", preset_windows_ad),
 }
 
 

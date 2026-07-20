@@ -190,6 +190,33 @@ def valider_config(config):
                 else:
                     ports_hote_vus[hote] = nom
 
+        disques = vm.get("extra_disks", [])
+        if not isinstance(disques, list):
+            erreurs.append(f"{ou} ({nom}) : « extra_disks » doit être une liste.")
+            disques = []
+        noms_disques_vus = set()
+        for k, disque in enumerate(disques):
+            if not isinstance(disque, dict):
+                erreurs.append(f"{ou}.extra_disks[{k}] ({nom}) : chaque disque doit être un objet JSON.")
+                continue
+            taille = disque.get("size_gb")
+            if not _est_entier(taille) or taille < 1:
+                erreurs.append(
+                    f"{ou}.extra_disks[{k}] ({nom}) : « size_gb » doit être un entier ≥ 1 (Go)."
+                )
+            nom_disque = disque.get("name", "")
+            if nom_disque and nom_disque in noms_disques_vus:
+                erreurs.append(
+                    f"{ou}.extra_disks[{k}] ({nom}) : nom de disque « {nom_disque} » "
+                    "déjà utilisé sur cette VM."
+                )
+            noms_disques_vus.add(nom_disque)
+        if disques and provider_effectif == "vmware_desktop":
+            avertissements.append(
+                f"{nom} : disque(s) additionnel(s) demandé(s), mais non automatisables "
+                "avec vmware_desktop — à créer/attacher à la main."
+            )
+
         provision = vm.get("provision") or {}
         if not isinstance(provision, dict):
             erreurs.append(f"{ou} ({nom}) : « provision » doit être un objet JSON.")

@@ -1,0 +1,78 @@
+name: Tests
+
+# Lance la suite de tests du cœur (pytest) et une vérification syntaxique
+# des fichiers JS du frontend à chaque push / pull request.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+
+      - name: Installer Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Installer pytest
+        run: pip install pytest
+
+      - name: Lancer les tests du cœur
+        run: python -m pytest tests/ -v
+
+  lint-js:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+
+      - name: Installer Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Vérifier la syntaxe des fichiers JS du frontend
+        run: |
+          for f in web/frontend/js/*.js; do
+            echo "→ $f"
+            node --check "$f"
+          done
+
+      - name: Vérifier la parité des clés i18n FR/EN
+        run: |
+          node -e "
+          const fs = require('fs');
+          const code = fs.readFileSync('web/frontend/js/i18n.js', 'utf8');
+          const extraire = (bloc) => {
+            const debut = code.indexOf(bloc + ':');
+            const ouvre = code.indexOf('{', debut);
+            let profondeur = 0, i = ouvre;
+            for (; i < code.length; i++) {
+              if (code[i] === '{') profondeur++;
+              else if (code[i] === '}') { profondeur--; if (profondeur === 0) break; }
+            }
+            const texte = code.slice(ouvre, i + 1);
+            return [...texte.matchAll(/'([a-zA-Z0-9_.]+)':/g)].map(m => m[1]);
+          };
+          const fr = extraire('fr'), en = extraire('en');
+          const manquantEn = fr.filter(k => !en.includes(k));
+          const manquantFr = en.filter(k => !fr.includes(k));
+          if (manquantEn.length || manquantFr.length) {
+            console.error('Clés i18n désynchronisées.');
+            console.error('Manquantes en EN:', manquantEn);
+            console.error('Manquantes en FR:', manquantFr);
+            process.exit(1);
+          }
+          console.log('i18n OK :', fr.length, 'clés, FR/EN synchronisées.');
+          "

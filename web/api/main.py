@@ -9,6 +9,8 @@ Sert le frontend et expose une petite API partageant le cœur Python :
     POST /api/generer             -> {vagrantfile, erreurs, avertissements,
                                        lint_erreurs, lint_avertissements}
                                       corps optionnel : {"config": {...}, "gabarit": "texte"}
+    POST /api/inventaire           -> {inventaire, erreurs, avertissements} (inventaire Ansible INI)
+    POST /api/exporter             -> renvoie un .zip (Vagrantfile + arborescence + README)
     GET  /api/verifier-box[?box=nom] -> compare le catalogue local à Vagrant Cloud
                                          (nécessite un accès réseau sortant depuis le serveur)
 
@@ -23,16 +25,19 @@ Lancement :
 import sys
 from pathlib import Path
 
-from flask import Flask, jsonify, request, send_from_directory
+import io
+
+from flask import Flask, jsonify, request, send_from_directory, send_file
 
 RACINE = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(RACINE))
 
-from core.generateur import construire_vagrantfile           # noqa: E402
+from core.generateur import construire_vagrantfile, construire_inventaire_ansible  # noqa: E402
 from core.schema import valider_config, BOX_PROVIDERS        # noqa: E402
 from core.presets import PRESETS, obtenir_preset              # noqa: E402
 from core.lint import linter_vagrantfile                      # noqa: E402
 from core.verif_box import verifier_catalogue, recuperer_versions_distantes  # noqa: E402
+from core.export_projet import construire_zip_projet           # noqa: E402
 
 FRONTEND = RACINE / "web" / "frontend"
 
@@ -98,6 +103,45 @@ def api_generer():
         "lint_erreurs": lint_erreurs,
         "lint_avertissements": lint_avertissements,
     })
+
+
+@app.post("/api/inventaire")
+def api_inventaire():
+    """Génère un inventaire Ansible (INI) depuis une config. Corps : la config
+    JSON brute, ou {"config": {...}}."""
+    corps = request.get_json(silent=True) or {}
+    config = corps["config"] if "config" in corps and isinstance(corps.get("config"), dict) else corps
+    erreurs, avertissements = valider_config(config)
+    if erreurs and not request.args.get("forcer"):
+        return jsonify({"erreurs": erreurs, "avertissements": avertissements, "inventaire": None}), 422
+    return jsonify({
+        "inventaire": construire_inventaire_ansible(config),
+        "erreurs": erreurs,
+        "avertissements": avertissements,
+    })
+
+
+@app.post("/api/exporter")
+def api_exporter():
+    """Exporte un projet complet en .zip (Vagrantfile + arborescence + README).
+    Corps : {"config": {...}, "gabarit": "texte optionnel", "avec_inventaire": bool}."""
+    corps = request.get_json(silent=True) or {}
+    config = corps.get("config") if isinstance(corps.get("config"), dict) else corps
+    gabarit = corps.get("gabarit") or None
+
+    erreurs, avertissements = valider_config(config)
+    if erreurs and not request.args.get("forcer"):
+        return jsonify({"erreurs": erreurs, "avertissements": avertissements}), 422
+
+    vagrantfile = construire_vagrantfile(config, gabarit)
+    inventaire = construire_inventaire_ansible(config) if corps.get("avec_inventaire") else None
+    archive = construire_zip_projet(config, vagrantfile, inventaire)
+    return send_file(
+        io.BytesIO(archive),
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name="projet-vagrantforge.zip",
+    )
 
 
 @app.get("/api/verifier-box")

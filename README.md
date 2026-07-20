@@ -33,7 +33,33 @@ commenté et **validé**. Trois interfaces, **un seul cœur** partagé :
 - **Réseau** : IP privées auto-incrémentées, réseau public en pont, ports redirigés.
 - **Presets prêts à l'emploi** : `solo`, `k3s`, `lamp`, `devsecops`, `pentest`,
   `monitoring` (Prometheus/Grafana), `elk` (Elasticsearch/Kibana), `wordpress`,
-  `gitlab-runner`, `nextcloud`.
+  `gitlab-runner`, `nextcloud`, `windows-ad` (contrôleur de domaine Active
+  Directory + poste client, WinRM).
+- **Disques additionnels par VM** : ajoute un ou plusieurs disques virtuels
+  en plus du disque système (VirtualBox `createhd`/`storageattach`
+  idempotent, libvirt `lv.storage`) — utile pour séparer les données du
+  système.
+- **Inventaire Ansible** : génère un inventaire statique (format INI) à
+  partir de la config, avec groupes automatiques par préfixe de nom
+  (`k3s-master`/`k3s-worker1` → groupe `[k3s]`) et détection SSH/WinRM.
+  `forge inventaire config.json`, `POST /api/inventaire`, ou le bouton
+  « Inventaire Ansible » côté web.
+- **Export de projet complet en .zip** : Vagrantfile + `README.md` généré +
+  arborescence des dossiers partagés (`.gitkeep`) + inventaire Ansible en
+  option, prêt à dézipper et lancer. `forge exporter config.json -o
+  projet.zip`, ou `POST /api/exporter`.
+- **Lien de partage** : encode toute la config dans l'URL (`#cfg=...`,
+  base64) pour la partager en un clic sans passer par un fichier — bouton
+  « Partager » côté web.
+- **Thème clair / sombre** : bascule persistante (respecte aussi la
+  préférence système au premier lancement).
+- **Installable en PWA** : manifest + service worker (app shell en cache,
+  fonctionne hors-ligne une fois chargée), icône néon dédiée.
+- **Interface bilingue FR/EN** : bouton de bascule, persisté — couvre la nav,
+  le formulaire de VM, la modale d'aide. Les messages de validation et le
+  contenu généré restent en français (voir `js/i18n.js`).
+- **Déploiement GitHub Pages en 1 push** : workflow prêt à l'emploi
+  (`.github/workflows/deploy-pages.yml`), il suffit d'activer Pages côté dépôt.
 - **Gabarits personnalisés** : en-tête, agencement libres via un simple fichier
   texte (`string.Template` stdlib, pas de dépendance Jinja2) — voir
   [Gabarits personnalisés](#-gabarits-personnalisés).
@@ -80,6 +106,11 @@ web/frontend/
 **Partager :** zippe le dossier `web/frontend/` (ou dépose-le sur GitHub Pages /
 Netlify). Il fonctionne aussi en `file://` en ouvrant `index.html`.
 
+**GitHub Pages en 1 push :** le workflow `.github/workflows/deploy-pages.yml`
+publie automatiquement `web/frontend/` à chaque push sur `main`. Il suffit
+d'activer Pages une fois : `Settings → Pages → Build and deployment → Source :
+"GitHub Actions"`.
+
 ---
 
 ## 🚀 Démarrage rapide
@@ -114,6 +145,12 @@ cat exemples/lab-web.json | python cli/main.py generer -
 
 # Générer avec un gabarit personnalisé (en-tête/agencement maison)
 python cli/main.py generer exemples/lab-web.json --gabarit exemples/gabarit-simple.txt
+
+# Générer un inventaire Ansible (INI) depuis une config
+python cli/main.py inventaire exemples/lab-web.json -o inventaire.ini
+
+# Exporter un projet complet en .zip (Vagrantfile + arborescence + README)
+python cli/main.py exporter exemples/lab-web.json -o projet.zip --avec-inventaire
 
 # Vérifier que le catalogue de box colle encore à Vagrant Cloud (réseau requis)
 python cli/main.py verifier-box
@@ -291,18 +328,21 @@ détecte automatiquement :
 ```
 vagrantforge/
 ├── core/                 cœur partagé (zéro dépendance)
-│   ├── generateur.py     construction du Vagrantfile + gabarits personnalisés
+│   ├── generateur.py     construction du Vagrantfile + inventaire Ansible + gabarits
 │   ├── schema.py         validation + table de compat box/provider
-│   ├── presets.py        labs prêts à l'emploi (10 presets)
+│   ├── presets.py        labs prêts à l'emploi (11 presets)
 │   ├── lint.py           lint structurel du Vagrantfile généré (+ ruby -c si dispo)
-│   └── verif_box.py      vérification du catalogue de box vs Vagrant Cloud
+│   ├── verif_box.py      vérification du catalogue de box vs Vagrant Cloud
+│   └── export_projet.py  export d'un projet complet en .zip
 ├── cli/main.py           interface ligne de commande
 ├── web/
 │   ├── api/main.py       serveur Flask (optionnel)
 │   └── frontend/         interface web (HTML / CSS / JS séparés)
 │       ├── index.html
-│       ├── css/style.css
-│       └── js/           donnees · generateur · validation · app
+│       ├── manifest.webmanifest, service-worker.js   PWA installable
+│       ├── icons/        icône néon (svg + png 192/512)
+│       ├── css/style.css thème clair/sombre via [data-theme]
+│       └── js/           i18n · donnees · generateur · validation · app
 ├── tests/                tests du cœur
 ├── exemples/             configs d'exemple + gabarit-simple.txt
 └── requirements.txt      Flask (uniquement pour l'API web)
@@ -315,6 +355,10 @@ mêmes règles de génération et de validation des deux côtés.
 ---
 
 ## 🧪 Tests
+
+**CI** : `.github/workflows/tests.yml` lance `pytest` (Python 3.10 & 3.12) et
+vérifie la syntaxe + la parité i18n FR/EN des fichiers JS à chaque push/PR sur
+`main`.
 
 ```bash
 python -m pytest tests/ -v

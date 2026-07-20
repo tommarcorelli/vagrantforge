@@ -103,6 +103,62 @@ def bloc_provider(var, provider, memoire, cpus, nom, gui=False, ip_statique=Fals
     return ""
 
 
+def bloc_disques(var, provider, disques):
+    """Bloc(s) de disque(s) additionnel(s) pour une VM.
+
+    `disques` : liste de `{"name": "data", "size_gb": 20}`. Chaque disque
+    additionnel est attaché en plus du disque système. Le nom sert de port
+    d'attache stable (VirtualBox) ou de volume (libvirt) — nécessaire pour
+    que `vagrant up` réutilise le même disque au lieu d'en recréer un neuf
+    à chaque fois.
+
+    - VirtualBox : `vb.customize` avec `createhd` (idempotent — recrée le
+      disque uniquement s'il n'existe pas déjà) + `storageattach`.
+    - libvirt : `lv.storage :file` (plugin vagrant-libvirt).
+    - vmware_desktop : non supporté nativement par le plugin Vagrant sans
+      manipulation manuelle du .vmx ; un commentaire l'indique.
+    """
+    disques = [d for d in (disques or []) if d.get("size_gb")]
+    if not disques:
+        return ""
+    lignes = []
+    if provider == "virtualbox":
+        for i, d in enumerate(disques):
+            nom_disque = d.get("name") or f"disque{i + 1}"
+            taille_mo = int(d["size_gb"]) * 1024
+            # Nom de fichier connu à la génération (pas besoin d'interpolation Ruby
+            # #{...} à l'exécution — en plus, #{...} perturbe le lint, qui traite
+            # tout ce qui suit un « # » sur une ligne comme un commentaire).
+            fichier = echapper(f"{var}_{nom_disque}_{i}.vdi")
+            lignes.append(
+                f'    {var}.vm.provider "virtualbox" do |vb|\n'
+                f'      disque_{i} = File.join(Dir.pwd, ".vagrant", "disques", "{fichier}")\n'
+                f'      FileUtils.mkdir_p(File.dirname(disque_{i})) unless '
+                f'Dir.exist?(File.dirname(disque_{i}))\n'
+                f'      vb.customize ["createhd", "--filename", disque_{i}, '
+                f'"--size", {taille_mo}] unless File.exist?(disque_{i})\n'
+                f'      vb.customize ["storageattach", :id, "--storagectl", "SATA Controller", '
+                f'"--port", {i + 1}, "--device", 0, "--type", "hdd", "--medium", disque_{i}]\n'
+                f'    end\n'
+            )
+    elif provider == "libvirt":
+        for i, d in enumerate(disques):
+            nom = d.get("name") or f"disque{i + 1}"
+            lignes.append(
+                f'    {var}.vm.provider "libvirt" do |lv|\n'
+                f'      lv.storage :file, size: "{int(d["size_gb"])}G", '
+                f'path: "{echapper(nom)}-disque{i}.qcow2"\n'
+                f'    end\n'
+            )
+    else:
+        noms = ", ".join(d.get("name") or f"disque{i + 1}" for i, d in enumerate(disques))
+        lignes.append(
+            f"    # Disque(s) additionnel(s) demandé(s) ({noms}) : non automatisable avec le "
+            f'provider "{provider}" — à créer/attacher manuellement.\n'
+        )
+    return "\n".join(l.rstrip("\n") for l in lignes) + "\n"
+
+
 def bloc_locale(var, locale, keymap):
     """Bloc de provisioning qui règle la langue et le clavier (familles Debian/Ubuntu)."""
     if not locale and not keymap:
@@ -243,6 +299,10 @@ def _lignes_vm(vm, provider_global):
     if bloc_p:
         lignes.append(bloc_p.rstrip("\n"))
 
+    bloc_d = bloc_disques(var, provider, vm.get("extra_disks"))
+    if bloc_d:
+        lignes.append(bloc_d.rstrip("\n"))
+
     if not windows:
         bloc_l = bloc_locale(var, vm.get("locale", ""), vm.get("keymap", ""))
         if bloc_l:
@@ -329,3 +389,63 @@ def construire_vagrantfile(config, gabarit=None):
     gabarit, produit le Vagrantfile standard (comportement historique).
     """
     return rendre_gabarit(config, gabarit)
+
+
+def _groupe_ansible(nom):
+    """Déduit un nom de groupe Ansible à partir du nom de VM (préfixe avant
+    le premier tiret/underscore, ex. « k3s-worker1 » -> « k3s »)."""
+    base = re.split(r"[-_]", nom, maxsplit=1)[0]
+    return base or "vagrantforge"
+
+
+def construire_inventaire_ansible(config):
+    """Construit un inventaire Ansible (format INI) à partir de la config.
+
+    Chaque VM devient un hôte, avec `ansible_host` (IP privée si connue,
+    sinon le nom), `ansible_user`/`ansible_password` (SSH) ou
+    `ansible_connection=winrm` + identifiants WinRM pour les invités
+    Windows. Les VMs sont aussi regroupées par préfixe de nom (« k3s-master »,
+    « k3s-worker1 » -> groupe `[k3s]`) pour cibler un lab entier facilement.
+
+    Utile pour piloter le lab avec Ansible depuis l'extérieur de Vagrant
+    (sans passer par `config.vm.provision "ansible"`), ou en complément.
+    """
+    vms = config.get("vms", [])
+    if not vms:
+        return "# Aucune VM dans la config : inventaire vide.\n"
+
+    groupes = {}
+    lignes_hotes = ["[tous:vars]", "ansible_ssh_common_args='-o StrictHostKeyChecking=no'", ""]
+    lignes_hotes.append("[tous]")
+    for vm in vms:
+        nom = vm.get("name", "vm")
+        ip = vm.get("ip", "")
+        cible = ip or nom
+        windows = est_box_windows(vm)
+        vars_hote = [f"ansible_host={cible}"]
+        if windows:
+            vars_hote.append("ansible_connection=winrm")
+            vars_hote.append("ansible_winrm_transport=basic")
+            vars_hote.append("ansible_port=5985")
+            if vm.get("winrm_username"):
+                vars_hote.append(f"ansible_user={vm['winrm_username']}")
+            if vm.get("winrm_password"):
+                vars_hote.append(f"ansible_password={vm['winrm_password']}")
+        else:
+            vars_hote.append(f"ansible_user={vm.get('ssh_username') or 'vagrant'}")
+            if vm.get("ssh_password"):
+                vars_hote.append(f"ansible_password={vm['ssh_password']}")
+        lignes_hotes.append(f"{nom} " + " ".join(vars_hote))
+        groupes.setdefault(_groupe_ansible(nom), []).append(nom)
+
+    sortie = ["# Inventaire Ansible généré par VagrantForge — statique, format INI.",
+              "# Utilisation : ansible-playbook -i inventaire.ini playbook.yml", ""]
+    sortie += lignes_hotes
+    sortie.append("")
+    for groupe, membres in groupes.items():
+        if len(membres) < 2 and groupe not in {"vagrantforge"}:
+            continue  # groupe à un seul membre : redondant avec [tous], pas utile
+        sortie.append(f"[{groupe}]")
+        sortie.extend(membres)
+        sortie.append("")
+    return "\n".join(sortie).rstrip("\n") + "\n"

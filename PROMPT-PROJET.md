@@ -81,6 +81,11 @@ vagrantforge/
   IDE), grille de fond, animations d'apparition, halo pulsé du logo, icônes de
   presets, liseré dégradé des en-têtes. Bloc CSS dédié en fin de `<style>`
   (« Finition premium »).
+- **3 presets réseau ajoutés** (thème BTS SISR) : `haproxy-lb` (HAProxy +
+  2 backends web, round-robin), `dns-dhcp` (BIND9 + isc-dhcp-server + VM
+  client de test), `wireguard` (VPN moderne, alternative à `openvpn`).
+  Ajoutés aux deux côtés (`core/presets.py` + `js/donnees.js`) + icônes
+  dans `app.js` (`ICP`) + tests dans `tests/test_generateur.py`.
 
 ### ⚠️ Piège à connaître (aperçu du code)
 `highlightRuby()` (dans `js/generateur.js`) ne renvoie PAS du texte brut : il renvoie

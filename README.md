@@ -37,7 +37,9 @@ commenté et **validé**. Trois interfaces, **un seul cœur** partagé :
   Directory + poste client, WinRM), `hashistack` (Consul + Vault + Nomad),
   `matomo` (analytics web libre), `minecraft` (serveur Java, pour changer du
   DevOps), `openvpn` (passerelle VPN), `mattermost` (chat d'équipe via
-  Docker), `redis-cluster` (3 nœuds, mode cluster).
+  Docker), `redis-cluster` (3 nœuds, mode cluster), `haproxy-lb` (répartition
+  de charge, HAProxy + 2 backends web), `dns-dhcp` (BIND9 + isc-dhcp-server +
+  client de test), `wireguard` (passerelle VPN moderne et légère).
 - **Diagramme de topologie réseau** : un bouton « 🗺️ Topologie » génère un
   diagramme Mermaid du lab (VMs, IP, ports redirigés, accès public), rendu
   directement dans le navigateur — copiable/téléchargeable en `.mmd`.

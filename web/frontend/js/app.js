@@ -472,7 +472,9 @@ function init(){
     'windows-ad':['fa-desktop','ic-blue'], hashistack:['fa-cubes','ic-violet'],
     matomo:['fa-chart-pie','ic-cyan'], minecraft:['fa-cube','ic-green'],
     openvpn:['fa-lock','ic-amber'], mattermost:['fa-comments','ic-blue'],
-    'redis-cluster':['fa-layer-group','ic-red']};
+    'redis-cluster':['fa-layer-group','ic-red'],
+    'haproxy-lb':['fa-scale-balanced','ic-cyan'], 'dns-dhcp':['fa-network-wired','ic-green'],
+    wireguard:['fa-shield-halved','ic-violet']};
   $('#presets-grid').innerHTML=Object.entries(PRESETS).map(([k,p])=>{
     const [ic,cls]=ICP[k]||['fa-box','ic-violet'];
     const iconClass = ic.startsWith('fa-brands')?ic:`fa-solid ${ic}`;

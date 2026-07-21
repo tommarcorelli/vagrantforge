@@ -264,4 +264,20 @@ const PRESETS = {
     return _vmp('redis-'+i,'debian/bookworm64',768,1,sr,150+i,[{guest:port,host:port}],
       "apt-get update -y\napt-get install -y redis-server\nsed -i 's/^port .*/port "+port+"/' /etc/redis/redis.conf\nsed -i 's/^# cluster-enabled no/cluster-enabled yes/' /etc/redis/redis.conf\nsed -i 's/^bind .*/bind 0.0.0.0/' /etc/redis/redis.conf\nsystemctl restart redis-server\n# Une fois les 3 nœuds up, sur l'un d'eux :\n# redis-cli --cluster create "+[0,1,2].map(j=>sr+'.'+(150+j)+':'+(7000+j)).join(' ')+" --cluster-replicas 0\n");
   })},
+  'haproxy-lb': {t:'Répartition de charge', d:'HAProxy + 2 serveurs web backend (round-robin).', build:sr=>[
+    _vmp('haproxy','debian/bookworm64',1024,1,sr,160,[{guest:80,host:8085}],
+      "apt-get update -y\napt-get install -y haproxy\ncat >> /etc/haproxy/haproxy.cfg <<'CFG'\n\nfrontend front_web\n    bind *:80\n    default_backend back_web\n\nbackend back_web\n    balance roundrobin\n    server web1 "+sr+".161:80 check\n    server web2 "+sr+".162:80 check\nCFG\nsystemctl enable --now haproxy && systemctl restart haproxy\n"),
+    _vmp('web1','debian/bookworm64',512,1,sr,161,[],
+      "apt-get update -y\napt-get install -y apache2\necho '<h1>Backend web1</h1>' > /var/www/html/index.html\nsystemctl enable --now apache2\n"),
+    _vmp('web2','debian/bookworm64',512,1,sr,162,[],
+      "apt-get update -y\napt-get install -y apache2\necho '<h1>Backend web2</h1>' > /var/www/html/index.html\nsystemctl enable --now apache2\n")]},
+  'dns-dhcp': {t:'Serveur DNS/DHCP', d:'BIND9 + isc-dhcp-server, avec un client pour tester.', build:sr=>[
+    _vmp('dns-dhcp','debian/bookworm64',1024,1,sr,170,[],
+      "apt-get update -y\napt-get install -y bind9 bind9utils isc-dhcp-server\n# Zone à déclarer dans /etc/bind/named.conf.local puis /etc/bind/db.lab.local\n# Portée DHCP à déclarer dans /etc/dhcp/dhcpd.conf (interface via /etc/default/isc-dhcp-server)\nsystemctl enable --now bind9\n"),
+    _vmp('client','debian/bookworm64',512,1,sr,171,[],
+      "apt-get update -y\n# Client pour tester : dig @"+sr+".170 lab.local ; dhclient -v eth1\n")]},
+  wireguard: {t:'Passerelle WireGuard', d:'VPN moderne et léger (alternative à OpenVPN).', build:sr=>[
+    _vmp('wireguard-gw','debian/bookworm64',512,1,sr,180,[{guest:51820,host:51820}],
+      "apt-get update -y\napt-get install -y wireguard\numask 077\nwg genkey | tee /etc/wireguard/server_private.key | wg pubkey > /etc/wireguard/server_public.key\ncat > /etc/wireguard/wg0.conf <<CFG\n[Interface]\nAddress = 10.10.10.1/24\nListenPort = 51820\nPrivateKey = $(cat /etc/wireguard/server_private.key)\nPostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE\nPostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE\n# [Peer] à ajouter pour chaque client\nCFG\necho 1 > /proc/sys/net/ipv4/ip_forward\necho 'net.ipv4.ip_forward=1' >> /etc/sysctl.conf\nsystemctl enable --now wg-quick@wg0\n",
+      {publicNetwork:true})]},
 };

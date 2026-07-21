@@ -320,7 +320,8 @@ def test_export_zip_avec_inventaire():
 
 
 def test_nouveaux_presets_presents():
-    attendus = {"hashistack", "matomo", "minecraft", "openvpn", "mattermost", "redis-cluster"}
+    attendus = {"hashistack", "matomo", "minecraft", "openvpn", "mattermost", "redis-cluster",
+                "haproxy-lb", "dns-dhcp", "wireguard"}
     assert attendus <= set(PRESETS)
 
 
@@ -329,6 +330,25 @@ def test_preset_redis_cluster_a_trois_noeuds():
     assert len(config["vms"]) == 3
     noms = {vm["name"] for vm in config["vms"]}
     assert noms == {"redis-0", "redis-1", "redis-2"}
+
+
+def test_preset_haproxy_lb_a_trois_vms():
+    config = obtenir_preset("haproxy-lb")
+    noms = {vm["name"] for vm in config["vms"]}
+    assert noms == {"haproxy", "web1", "web2"}
+
+
+def test_preset_dns_dhcp_valide():
+    config = obtenir_preset("dns-dhcp")
+    erreurs, _ = valider_config(config)
+    assert erreurs == []
+
+
+def test_preset_wireguard_expose_le_bon_port():
+    config = obtenir_preset("wireguard")
+    vm = config["vms"][0]
+    assert vm["ports"] == [{"guest": 51820, "host": 51820}]
+    assert vm["public_network"] is True
 
 
 def test_validation_detecte_mot_de_passe_faible():

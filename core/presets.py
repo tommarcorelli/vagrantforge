@@ -424,6 +424,80 @@ def preset_redis_cluster(sr="192.168.56"):
     return {"provider": "virtualbox", "box_check_update": False, "vms": vms}
 
 
+def preset_haproxy_lb(sr="192.168.56"):
+    """Répartition de charge : HAProxy + 2 serveurs web backend (round-robin)."""
+    return {
+        "provider": "virtualbox",
+        "box_check_update": False,
+        "vms": [
+            _vm("haproxy", "debian/bookworm64", 1024, 1, sr, 160,
+                ports=[{"guest": 80, "host": 8085}],
+                script="apt-get update -y\n"
+                       "apt-get install -y haproxy\n"
+                       "cat >> /etc/haproxy/haproxy.cfg <<'CFG'\n"
+                       "\nfrontend front_web\n    bind *:80\n    default_backend back_web\n\n"
+                       "backend back_web\n    balance roundrobin\n"
+                       f"    server web1 {sr}.161:80 check\n"
+                       f"    server web2 {sr}.162:80 check\n"
+                       "CFG\n"
+                       "systemctl enable --now haproxy && systemctl restart haproxy\n"),
+            _vm("web1", "debian/bookworm64", 512, 1, sr, 161,
+                script="apt-get update -y\napt-get install -y apache2\n"
+                       "echo '<h1>Backend web1</h1>' > /var/www/html/index.html\n"
+                       "systemctl enable --now apache2\n"),
+            _vm("web2", "debian/bookworm64", 512, 1, sr, 162,
+                script="apt-get update -y\napt-get install -y apache2\n"
+                       "echo '<h1>Backend web2</h1>' > /var/www/html/index.html\n"
+                       "systemctl enable --now apache2\n"),
+        ],
+    }
+
+
+def preset_dns_dhcp(sr="192.168.56"):
+    """Serveur DNS (BIND9) + DHCP (isc-dhcp-server) et un client pour tester."""
+    return {
+        "provider": "virtualbox",
+        "box_check_update": False,
+        "vms": [
+            _vm("dns-dhcp", "debian/bookworm64", 1024, 1, sr, 170,
+                script="apt-get update -y\n"
+                       "apt-get install -y bind9 bind9utils isc-dhcp-server\n"
+                       "# Zone à déclarer dans /etc/bind/named.conf.local puis /etc/bind/db.lab.local\n"
+                       "# Portée DHCP à déclarer dans /etc/dhcp/dhcpd.conf (interface via /etc/default/isc-dhcp-server)\n"
+                       "systemctl enable --now bind9\n"
+                       "# isc-dhcp-server nécessite sa portée configurée avant de démarrer proprement\n"),
+            _vm("client", "debian/bookworm64", 512, 1, sr, 171,
+                script="apt-get update -y\n"
+                       "# Client pour tester : dig @" + sr + ".170 lab.local ; dhclient -v eth1\n"),
+        ],
+    }
+
+
+def preset_wireguard(sr="192.168.56"):
+    """Passerelle VPN WireGuard, moderne et légère (alternative à OpenVPN)."""
+    return {
+        "provider": "virtualbox",
+        "box_check_update": False,
+        "vms": [
+            _vm("wireguard-gw", "debian/bookworm64", 512, 1, sr, 180,
+                ports=[{"guest": 51820, "host": 51820}],
+                public_network=True,
+                script="apt-get update -y\n"
+                       "apt-get install -y wireguard\n"
+                       "umask 077\n"
+                       "wg genkey | tee /etc/wireguard/server_private.key | wg pubkey > /etc/wireguard/server_public.key\n"
+                       "cat > /etc/wireguard/wg0.conf <<CFG\n"
+                       "[Interface]\nAddress = 10.10.10.1/24\nListenPort = 51820\n"
+                       "PrivateKey = $(cat /etc/wireguard/server_private.key)\n"
+                       "PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE\n"
+                       "PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE\n"
+                       "# [Peer] à ajouter pour chaque client (clé publique + IP tunnel)\nCFG\n"
+                       "echo 1 > /proc/sys/net/ipv4/ip_forward\necho 'net.ipv4.ip_forward=1' >> /etc/sysctl.conf\n"
+                       "systemctl enable --now wg-quick@wg0\n"),
+        ],
+    }
+
+
 PRESETS = {
     "solo":           ("VM Debian unique", preset_solo),
     "k3s":            ("Cluster K3s (3 VMs)", preset_k3s),
@@ -442,6 +516,9 @@ PRESETS = {
     "openvpn":        ("Passerelle VPN OpenVPN", preset_openvpn),
     "mattermost":     ("Mattermost — chat d'équipe (Docker)", preset_mattermost),
     "redis-cluster":  ("Cluster Redis à 3 nœuds", preset_redis_cluster),
+    "haproxy-lb":     ("Répartition de charge HAProxy", preset_haproxy_lb),
+    "dns-dhcp":       ("Serveur DNS/DHCP (BIND9 + isc-dhcp)", preset_dns_dhcp),
+    "wireguard":      ("Passerelle VPN WireGuard", preset_wireguard),
 }
 
 

@@ -6,8 +6,13 @@ const RE_NOM = /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/;
 const RE_IPV4 = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
 function ipPrivee(ip){ return ip.startsWith('10.')||ip.startsWith('192.168.')||/^172\.(1[6-9]|2\d|3[01])\./.test(ip); }
 
+const MOTS_DE_PASSE_FAIBLES = new Set(['vagrant','password','123456','azerty','qwerty','admin',
+  'root','toor','changeme','letmein','welcome','12345678','motdepasse','password123','admin123']);
+const PORTS_SENSIBLES = {22:'SSH',3389:'RDP',3306:'MySQL/MariaDB',5432:'PostgreSQL',
+  27017:'MongoDB',6379:'Redis',9200:'Elasticsearch'};
+
 function valider(pg, vms){
-  const erreurs=[], avert=[], nomsErr={}; const noms={},ips={},portsHote={}; let ram=0;
+  const erreurs=[], avert=[], nomsErr={}; const noms={},ips={},portsHote={}; let ram=0, cpuTotal=0;
   if(vms.length===0) avert.push('Aucune VM : le Vagrantfile sera vide.');
   vms.forEach(v=>{
     const n=v.name||'(sans nom)'; nomsErr[v.id]=false;
@@ -17,6 +22,7 @@ function valider(pg, vms){
     const mem=parseInt(v.memory);
     if(!Number.isInteger(mem)||mem<128){ erreurs.push(`${n} : RAM invalide (≥ 128 Mo).`); nomsErr[v.id]=true; }
     else { ram+=mem; if(mem<512) avert.push(`${n} : ${mem} Mo, c'est peu pour la plupart des OS.`); }
+    const cpuN=parseInt(v.cpus); if(Number.isInteger(cpuN)&&cpuN>=1) cpuTotal+=cpuN;
     if(v.ip){
       if(!RE_IPV4.test(v.ip)){ erreurs.push(`${n} : IP invalide « ${v.ip} ».`); nomsErr[v.id]=true; }
       else if(ips[v.ip]){ erreurs.push(`IP ${v.ip} donnée à « ${ips[v.ip]} » ET « ${n} ».`); nomsErr[v.id]=true; }
@@ -40,6 +46,13 @@ function valider(pg, vms){
     if((v.extraDisks||[]).length && (v.provider||pg)==='vmware_desktop') avert.push(`${n} : disque(s) additionnel(s) non automatisables avec vmware_desktop.`);
     if(v.provisionType==='ansible'&&!v.provisionScript){ erreurs.push(`${n} : Ansible sans chemin de playbook.`); nomsErr[v.id]=true; }
     if(v.sshPassword||v.rootPassword||v.winrmPassword) avert.push(`${n} : mot de passe en clair — OK pour un lab jetable seulement.`);
+    [['sshPassword',v.sshPassword],['rootPassword',v.rootPassword],['winrmPassword',v.winrmPassword]].forEach(([champ,mdp])=>{
+      if(mdp && MOTS_DE_PASSE_FAIBLES.has(String(mdp).trim().toLowerCase())) avert.push(`${n} : « ${champ} » utilise un mot de passe très courant (« ${mdp} ») — trivial à deviner.`);
+    });
+    if(v.publicNetwork){
+      const exposes=new Set((v.ports||[]).map(p=>parseInt(p.guest)).filter(g=>PORTS_SENSIBLES[g]));
+      if(exposes.size) avert.push(`${n} : réseau public activé avec un service sensible exposé (${[...exposes].map(g=>PORTS_SENSIBLES[g]).sort().join(', ')}) — restreins l'accès ou désactive le pont réseau.`);
+    }
     if(estBoxWindows(v)){
       if(v.locale||v.keymap) avert.push(`${n} : « locale »/« keymap » ignorés sur un invité Windows.`);
       if(v.sshUsername||v.sshPassword) avert.push(`${n} : « SSH »/« mot de passe SSH » ignorés sur un invité Windows — utilise WinRM.`);
@@ -48,5 +61,6 @@ function valider(pg, vms){
     }
   });
   if(ram>32768) avert.push(`RAM totale : ${ram} Mo — vérifie que ton PC encaisse.`);
+  if(cpuTotal>16) avert.push(`vCPU total : ${cpuTotal} — au-delà des cœurs physiques d'un hôte courant, les VMs vont se marcher sur les pieds.`);
   return {erreurs, avert, nomsErr};
 }

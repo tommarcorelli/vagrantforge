@@ -449,3 +449,61 @@ def construire_inventaire_ansible(config):
         sortie.extend(membres)
         sortie.append("")
     return "\n".join(sortie).rstrip("\n") + "\n"
+
+
+def construire_inventaire_ansible_yaml(config):
+    """Construit un inventaire Ansible au format YAML (structure `all.hosts` +
+    groupes par préfixe de nom), équivalent YAML de
+    `construire_inventaire_ansible`. Zéro dépendance : YAML écrit à la main
+    (pas de PyYAML), suffisamment simple pour rester fiable sans lib.
+    """
+    vms = config.get("vms", [])
+    if not vms:
+        return "# Aucune VM dans la config : inventaire vide.\nall:\n  hosts: {}\n"
+
+    def _ligne_hote(vm, indent):
+        nom = vm.get("name", "vm")
+        ip = vm.get("ip", "") or nom
+        windows = est_box_windows(vm)
+        vars_hote = [f"ansible_host: {ip}"]
+        if windows:
+            vars_hote += ["ansible_connection: winrm", "ansible_winrm_transport: basic",
+                          "ansible_port: 5985"]
+            if vm.get("winrm_username"):
+                vars_hote.append(f"ansible_user: {vm['winrm_username']}")
+            if vm.get("winrm_password"):
+                vars_hote.append(f"ansible_password: {vm['winrm_password']}")
+        else:
+            vars_hote.append(f"ansible_user: {vm.get('ssh_username') or 'vagrant'}")
+            if vm.get("ssh_password"):
+                vars_hote.append(f"ansible_password: {vm['ssh_password']}")
+        pad = " " * indent
+        lignes = [f"{pad}{nom}:"]
+        lignes += [f"{pad}  {v}" for v in vars_hote]
+        return lignes
+
+    groupes = {}
+    for vm in vms:
+        groupes.setdefault(_groupe_ansible(vm.get("name", "vm")), []).append(vm)
+
+    sortie = [
+        "# Inventaire Ansible généré par VagrantForge — YAML.",
+        "# Utilisation : ansible-playbook -i inventaire.yml playbook.yml",
+        "all:",
+        "  vars:",
+        "    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'",
+        "  hosts:",
+    ]
+    for vm in vms:
+        sortie += _ligne_hote(vm, 4)
+
+    groupes_multi = {g: membres for g, membres in groupes.items() if len(membres) >= 2}
+    if groupes_multi:
+        sortie.append("  children:")
+        for groupe, membres in groupes_multi.items():
+            sortie.append(f"    {groupe}:")
+            sortie.append("      hosts:")
+            for vm in membres:
+                sortie.append(f"        {vm.get('name', 'vm')}: {{}}")
+
+    return "\n".join(sortie) + "\n"

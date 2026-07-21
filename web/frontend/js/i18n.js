@@ -19,6 +19,9 @@ const I18N = {
   fr: {
     'nav.theme': 'Basculer thème clair/sombre',
     'nav.aide': 'Comment ça marche',
+    'nav.topologie': 'Topologie',
+    'nav.aleatoire': 'Lab aléatoire',
+    'nav.plus': 'Plus',
     'nav.partager': 'Partager',
     'nav.inventaire': 'Inventaire Ansible',
     'nav.importer': 'Importer',
@@ -27,7 +30,6 @@ const I18N = {
     'nav.telecharger': 'Télécharger le projet',
     'nav.lang': 'English',
 
-    'hero.badge': 'Générateur de Vagrantfile · style CasaOS',
     'hero.titre1': 'Forge tes labs de VMs',
     'hero.titre2': 'sans écrire une ligne de Ruby',
     'hero.sous': "Décris tes machines dans le formulaire — VagrantForge écrit le Vagrantfile, validé, commenté et prêt à vagrant up. Tout tourne dans ton navigateur.",
@@ -74,6 +76,11 @@ const I18N = {
     'modal.prov.t': 'provisioning', 'modal.prov.d': 'Les commandes lancées automatiquement au premier démarrage (installer nginx, Docker…). Utilise l\u2019aide « insérer une commande ».',
     'modal.astuce': '<b>Astuce :</b> tu peux exporter ta config en JSON (bouton « Exporter ») pour la sauvegarder ou la partager, et la réimporter plus tard. Le bouton <b>« Télécharger le projet »</b> te donne tout le code (web + CLI + API) dans une archive.',
 
+    'topo.titre': 'Topologie du lab',
+    'topo.intro': "Vue d'ensemble du réseau : VMs, IP privées, ports redirigés et accès public éventuel.",
+    'topo.copier': 'copier le code Mermaid',
+    'topo.telecharger': 'télécharger (.mmd)',
+
     // Libellés de la carte VM (générés en JS)
     'vm.nom': 'Nom de la VM',
     'vm.os': "Système d'exploitation (OS)",
@@ -110,6 +117,9 @@ const I18N = {
   en: {
     'nav.theme': 'Toggle light/dark theme',
     'nav.aide': 'How it works',
+    'nav.topologie': 'Topology',
+    'nav.aleatoire': 'Random lab',
+    'nav.plus': 'More',
     'nav.partager': 'Share',
     'nav.inventaire': 'Ansible inventory',
     'nav.importer': 'Import',
@@ -118,7 +128,6 @@ const I18N = {
     'nav.telecharger': 'Download the project',
     'nav.lang': 'Français',
 
-    'hero.badge': 'Vagrantfile generator · CasaOS style',
     'hero.titre1': 'Forge your VM labs',
     'hero.titre2': 'without writing a line of Ruby',
     'hero.sous': "Describe your machines in the form — VagrantForge writes the Vagrantfile, validated, commented and ready for vagrant up. Everything runs in your browser.",
@@ -164,6 +173,11 @@ const I18N = {
     'modal.port.t': 'forwarded port', 'modal.port.d': 'Makes a VM service reachable from your PC: "guest 80 → host 8080" = <code>localhost:8080</code> opens port 80 of the VM.',
     'modal.prov.t': 'provisioning', 'modal.prov.d': 'Commands run automatically on first boot (install nginx, Docker…). Use the "insert a command" helper.',
     'modal.astuce': '<b>Tip:</b> you can export your config as JSON ("Export" button) to save or share it, and re-import it later. The <b>"Download the project"</b> button gives you all the code (web + CLI + API) in one archive.',
+
+    'topo.titre': 'Lab topology',
+    'topo.intro': 'Network overview: VMs, private IPs, forwarded ports, and any public access.',
+    'topo.copier': 'copy Mermaid code',
+    'topo.telecharger': 'download (.mmd)',
 
     'vm.nom': 'VM name',
     'vm.os': 'Operating system (OS)',

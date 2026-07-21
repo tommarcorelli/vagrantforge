@@ -64,6 +64,17 @@ REGEX_IPV4 = re.compile(
 )
 TYPES_PROVISION = ("shell", "ansible", "none")
 
+# Mots de passe évidents à repérer en validation (liste non-exhaustive, en
+# minuscules) — ne remplace pas un vrai audit de sécurité, juste un
+# garde-fou pour éviter le pire dans un lab exposé.
+MOTS_DE_PASSE_FAIBLES = {
+    "vagrant", "password", "123456", "azerty", "qwerty", "admin",
+    "root", "toor", "changeme", "letmein", "welcome", "12345678",
+    "motdepasse", "password123", "admin123",
+}
+PORTS_SENSIBLES = {22: "SSH", 3389: "RDP", 3306: "MySQL/MariaDB", 5432: "PostgreSQL",
+                    27017: "MongoDB", 6379: "Redis", 9200: "Elasticsearch"}
+
 
 def _est_entier(valeur):
     return isinstance(valeur, int) and not isinstance(valeur, bool)
@@ -94,6 +105,7 @@ def valider_config(config):
     ips_vues = {}
     ports_hote_vus = {}
     total_ram = 0
+    total_cpu = 0
 
     for i, vm in enumerate(vms):
         ou = f"vms[{i}]"
@@ -128,6 +140,8 @@ def valider_config(config):
         cpus = vm.get("cpus", 1)
         if not _est_entier(cpus) or cpus < 1:
             erreurs.append(f"{ou} ({nom}) : « cpus » doit être un entier ≥ 1.")
+        else:
+            total_cpu += cpus
 
         ip = vm.get("ip", "")
         if ip:
@@ -236,6 +250,30 @@ def valider_config(config):
                 "à proscrire ailleurs."
             )
 
+        mdp_a_verifier = {
+            "ssh_password": vm.get("ssh_password"),
+            "root_password": vm.get("root_password"),
+            "winrm_password": vm.get("winrm_password"),
+        }
+        for champ, mdp in mdp_a_verifier.items():
+            if mdp and str(mdp).strip().lower() in MOTS_DE_PASSE_FAIBLES:
+                avertissements.append(
+                    f"{nom} : « {champ} » utilise un mot de passe très courant "
+                    f"(« {mdp} ») — trivial à deviner, même pour un lab jetable."
+                )
+
+        if vm.get("public_network"):
+            ports_exposes = {
+                p.get("guest") for p in (ports or [])
+                if _est_entier(p.get("guest")) and p.get("guest") in PORTS_SENSIBLES
+            }
+            if ports_exposes:
+                noms_ports = ", ".join(sorted(PORTS_SENSIBLES[p] for p in ports_exposes))
+                avertissements.append(
+                    f"{nom} : réseau public activé avec un service sensible exposé "
+                    f"({noms_ports}) — restreins l'accès ou désactive « public_network »."
+                )
+
         if est_box_windows(vm):
             if vm.get("locale") or vm.get("keymap"):
                 avertissements.append(
@@ -262,6 +300,11 @@ def valider_config(config):
     if total_ram > 32768:
         avertissements.append(
             f"RAM totale du lab : {total_ram} Mo — vérifie que la machine hôte encaisse."
+        )
+    if total_cpu > 16:
+        avertissements.append(
+            f"vCPU total du lab : {total_cpu} — au-delà des cœurs physiques d'un hôte "
+            "courant, les VMs vont se marcher sur les pieds."
         )
 
     return (erreurs, avertissements)

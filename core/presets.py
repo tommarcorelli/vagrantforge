@@ -272,6 +272,158 @@ def preset_windows_ad(sr="192.168.56"):
     }
 
 
+def preset_hashistack(sr="192.168.56"):
+    """Stack HashiCorp : Consul + Vault (serveur) + Nomad (serveur + client)."""
+    return {
+        "provider": "virtualbox",
+        "box_check_update": False,
+        "vms": [
+            _vm("hashi-server", "debian/bookworm64", 2048, 2, sr, 100,
+                ports=[{"guest": 8500, "host": 8500}, {"guest": 8200, "host": 8200},
+                       {"guest": 4646, "host": 4646}],
+                script="apt-get update -y\n"
+                       "apt-get install -y gnupg software-properties-common curl lsb-release\n"
+                       "curl -fsSL https://apt.releases.hashicorp.com/gpg | gpg --dearmor "
+                       "-o /usr/share/keyrings/hashicorp.gpg\n"
+                       "echo \"deb [signed-by=/usr/share/keyrings/hashicorp.gpg] "
+                       "https://apt.releases.hashicorp.com $(lsb_release -cs) main\" "
+                       "> /etc/apt/sources.list.d/hashicorp.list\n"
+                       "apt-get update -y && apt-get install -y consul vault nomad\n"
+                       "# Démarrage dev (NON adapté à la prod) :\n"
+                       "# consul agent -dev -client 0.0.0.0 &\n"
+                       "# vault server -dev -dev-listen-address=0.0.0.0:8200 &\n"
+                       "# nomad agent -dev -bind 0.0.0.0 &\n"),
+            _vm("hashi-client", "debian/bookworm64", 1536, 1, sr, 101,
+                script="apt-get update -y\n"
+                       "apt-get install -y gnupg software-properties-common curl lsb-release\n"
+                       "curl -fsSL https://apt.releases.hashicorp.com/gpg | gpg --dearmor "
+                       "-o /usr/share/keyrings/hashicorp.gpg\n"
+                       "echo \"deb [signed-by=/usr/share/keyrings/hashicorp.gpg] "
+                       "https://apt.releases.hashicorp.com $(lsb_release -cs) main\" "
+                       "> /etc/apt/sources.list.d/hashicorp.list\n"
+                       "apt-get update -y && apt-get install -y consul nomad docker.io\n"
+                       "# Rejoindre : nomad agent -client -servers=" + sr + ".100:4647\n"),
+        ],
+    }
+
+
+def preset_matomo(sr="192.168.56"):
+    """Matomo (analytics web, alternative libre à Google Analytics) + MariaDB."""
+    return {
+        "provider": "virtualbox",
+        "box_check_update": False,
+        "vms": [
+            _vm("matomo", "debian/bookworm64", 1536, 1, sr, 110,
+                ports=[{"guest": 80, "host": 8084}],
+                script="apt-get update -y\n"
+                       "apt-get install -y apache2 mariadb-server php php-mysql php-gd php-curl "
+                       "php-mbstring php-xml php-json\n"
+                       "systemctl enable --now apache2 mariadb\n"
+                       "mysql -e \"CREATE DATABASE matomo; "
+                       "CREATE USER 'matomo'@'localhost' IDENTIFIED BY 'matomo';\n"
+                       "GRANT ALL PRIVILEGES ON matomo.* TO 'matomo'@'localhost'; FLUSH PRIVILEGES;\"\n"
+                       "cd /tmp && wget -q https://builds.matomo.org/matomo-latest.zip\n"
+                       "apt-get install -y unzip && unzip -q matomo-latest.zip -d /var/www/\n"
+                       "chown -R www-data:www-data /var/www/matomo\n"
+                       "# Assistant d'installation web à finir sur http://" + sr + ".110/\n"),
+        ],
+    }
+
+
+def preset_minecraft(sr="192.168.56"):
+    """Serveur Minecraft Java (vanilla) — pour un lab qui change du DevOps."""
+    return {
+        "provider": "virtualbox",
+        "box_check_update": False,
+        "vms": [
+            _vm("minecraft", "debian/bookworm64", 3072, 2, sr, 120,
+                ports=[{"guest": 25565, "host": 25565}],
+                script="apt-get update -y\n"
+                       "apt-get install -y openjdk-21-jre-headless screen\n"
+                       "mkdir -p /opt/minecraft && cd /opt/minecraft\n"
+                       "# Remplace l'URL par le lien « server.jar » officiel de la version voulue\n"
+                       "# (https://www.minecraft.net/fr-fr/download/server)\n"
+                       "wget -q -O server.jar <URL_SERVER_JAR>\n"
+                       "echo 'eula=true' > eula.txt\n"
+                       "cat > /etc/systemd/system/minecraft.service <<'UNIT'\n"
+                       "[Unit]\nDescription=Serveur Minecraft\nAfter=network.target\n"
+                       "[Service]\nWorkingDirectory=/opt/minecraft\n"
+                       "ExecStart=/usr/bin/java -Xmx2G -Xms1G -jar server.jar nogui\n"
+                       "Restart=on-failure\n[Install]\nWantedBy=multi-user.target\nUNIT\n"
+                       "systemctl daemon-reload\n"
+                       "systemctl enable --now minecraft\n"
+                       "# Connexion : " + sr + ".120:25565 (ou 127.0.0.1:25565 en local)\n"),
+        ],
+    }
+
+
+def preset_openvpn(sr="192.168.56"):
+    """Passerelle VPN OpenVPN (avec easy-rsa), en pont sur le réseau public."""
+    return {
+        "provider": "virtualbox",
+        "box_check_update": False,
+        "vms": [
+            _vm("openvpn-gw", "debian/bookworm64", 1024, 1, sr, 130,
+                ports=[{"guest": 1194, "host": 1194}],
+                public_network=True,
+                script="apt-get update -y\n"
+                       "apt-get install -y openvpn easy-rsa\n"
+                       "make-cadir /etc/openvpn/easy-rsa\n"
+                       "# Génération PKI à finir à la main : ./easyrsa init-pki && "
+                       "./easyrsa build-ca ...\n"
+                       "echo 1 > /proc/sys/net/ipv4/ip_forward\n"
+                       "echo 'net.ipv4.ip_forward=1' >> /etc/sysctl.conf\n"
+                       "# Config serveur type dans /etc/openvpn/server.conf (port 1194 udp)\n"),
+        ],
+    }
+
+
+def preset_mattermost(sr="192.168.56"):
+    """Mattermost (chat d'équipe libre, alternative à Slack) via Docker."""
+    return {
+        "provider": "virtualbox",
+        "box_check_update": False,
+        "vms": [
+            _vm("mattermost", "debian/bookworm64", 2048, 2, sr, 140,
+                ports=[{"guest": 8065, "host": 8065}],
+                script="apt-get update -y\n"
+                       "apt-get install -y curl ca-certificates\n"
+                       "curl -fsSL https://get.docker.com | sh\n"
+                       "mkdir -p /opt/mattermost && cd /opt/mattermost\n"
+                       "cat > docker-compose.yml <<'YAML'\n"
+                       "services:\n"
+                       "  mattermost:\n"
+                       "    image: mattermost/mattermost-team-edition:latest\n"
+                       "    ports: [\"8065:8065\"]\n"
+                       "    volumes: [\"./data:/mattermost/data\"]\n"
+                       "YAML\n"
+                       "docker compose up -d\n"),
+        ],
+    }
+
+
+def preset_redis_cluster(sr="192.168.56"):
+    """Cluster Redis à 3 nœuds (mode cluster, réplication automatique)."""
+    vms = []
+    for i in range(3):
+        port = 7000 + i
+        vms.append(
+            _vm(f"redis-{i}", "debian/bookworm64", 768, 1, sr, 150 + i,
+                ports=[{"guest": port, "host": port}],
+                script="apt-get update -y\n"
+                       "apt-get install -y redis-server\n"
+                       f"sed -i 's/^port .*/port {port}/' /etc/redis/redis.conf\n"
+                       "sed -i 's/^# cluster-enabled no/cluster-enabled yes/' /etc/redis/redis.conf\n"
+                       "sed -i 's/^bind .*/bind 0.0.0.0/' /etc/redis/redis.conf\n"
+                       "systemctl restart redis-server\n"
+                       "# Une fois les 3 nœuds up, sur l'un d'eux :\n"
+                       "# redis-cli --cluster create " + " ".join(
+                           f"{sr}.{150 + j}:{7000 + j}" for j in range(3)
+                       ) + " --cluster-replicas 0\n"),
+        )
+    return {"provider": "virtualbox", "box_check_update": False, "vms": vms}
+
+
 PRESETS = {
     "solo":           ("VM Debian unique", preset_solo),
     "k3s":            ("Cluster K3s (3 VMs)", preset_k3s),
@@ -284,6 +436,12 @@ PRESETS = {
     "gitlab-runner":  ("GitLab Runner + Docker", preset_gitlab_runner),
     "nextcloud":      ("Nextcloud + MariaDB", preset_nextcloud),
     "windows-ad":     ("Windows : DC Active Directory + client", preset_windows_ad),
+    "hashistack":     ("HashiCorp : Consul + Vault + Nomad", preset_hashistack),
+    "matomo":         ("Matomo — analytics web libre", preset_matomo),
+    "minecraft":      ("Serveur Minecraft Java", preset_minecraft),
+    "openvpn":        ("Passerelle VPN OpenVPN", preset_openvpn),
+    "mattermost":     ("Mattermost — chat d'équipe (Docker)", preset_mattermost),
+    "redis-cluster":  ("Cluster Redis à 3 nœuds", preset_redis_cluster),
 }
 
 

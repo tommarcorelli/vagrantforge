@@ -9,7 +9,8 @@ Sert le frontend et expose une petite API partageant le cœur Python :
     POST /api/generer             -> {vagrantfile, erreurs, avertissements,
                                        lint_erreurs, lint_avertissements}
                                       corps optionnel : {"config": {...}, "gabarit": "texte"}
-    POST /api/inventaire           -> {inventaire, erreurs, avertissements} (inventaire Ansible INI)
+    POST /api/inventaire[?format=yaml] -> {inventaire, erreurs, avertissements} (Ansible, INI par défaut)
+    POST /api/topologie            -> {mermaid, erreurs, avertissements} (diagramme réseau Mermaid)
     POST /api/exporter             -> renvoie un .zip (Vagrantfile + arborescence + README)
     GET  /api/verifier-box[?box=nom] -> compare le catalogue local à Vagrant Cloud
                                          (nécessite un accès réseau sortant depuis le serveur)
@@ -32,12 +33,15 @@ from flask import Flask, jsonify, request, send_from_directory, send_file
 RACINE = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(RACINE))
 
-from core.generateur import construire_vagrantfile, construire_inventaire_ansible  # noqa: E402
+from core.generateur import (                                   # noqa: E402
+    construire_vagrantfile, construire_inventaire_ansible, construire_inventaire_ansible_yaml,
+)
 from core.schema import valider_config, BOX_PROVIDERS        # noqa: E402
 from core.presets import PRESETS, obtenir_preset              # noqa: E402
 from core.lint import linter_vagrantfile                      # noqa: E402
 from core.verif_box import verifier_catalogue, recuperer_versions_distantes  # noqa: E402
 from core.export_projet import construire_zip_projet           # noqa: E402
+from core.topologie import construire_topologie_mermaid        # noqa: E402
 
 FRONTEND = RACINE / "web" / "frontend"
 
@@ -107,15 +111,33 @@ def api_generer():
 
 @app.post("/api/inventaire")
 def api_inventaire():
-    """Génère un inventaire Ansible (INI) depuis une config. Corps : la config
-    JSON brute, ou {"config": {...}}."""
+    """Génère un inventaire Ansible (INI par défaut, YAML avec ?format=yaml)
+    depuis une config. Corps : la config JSON brute, ou {"config": {...}}."""
     corps = request.get_json(silent=True) or {}
     config = corps["config"] if "config" in corps and isinstance(corps.get("config"), dict) else corps
     erreurs, avertissements = valider_config(config)
     if erreurs and not request.args.get("forcer"):
         return jsonify({"erreurs": erreurs, "avertissements": avertissements, "inventaire": None}), 422
+    fabrique = (construire_inventaire_ansible_yaml if request.args.get("format") == "yaml"
+                else construire_inventaire_ansible)
     return jsonify({
-        "inventaire": construire_inventaire_ansible(config),
+        "inventaire": fabrique(config),
+        "erreurs": erreurs,
+        "avertissements": avertissements,
+    })
+
+
+@app.post("/api/topologie")
+def api_topologie():
+    """Génère un diagramme Mermaid de la topologie du lab. Corps : la config
+    JSON brute, ou {"config": {...}}."""
+    corps = request.get_json(silent=True) or {}
+    config = corps["config"] if "config" in corps and isinstance(corps.get("config"), dict) else corps
+    erreurs, avertissements = valider_config(config)
+    if erreurs and not request.args.get("forcer"):
+        return jsonify({"erreurs": erreurs, "avertissements": avertissements, "mermaid": None}), 422
+    return jsonify({
+        "mermaid": construire_topologie_mermaid(config),
         "erreurs": erreurs,
         "avertissements": avertissements,
     })

@@ -11,11 +11,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.generateur import (construire_vagrantfile, nom_variable, echapper, construire_sections,
-                              est_box_windows, construire_inventaire_ansible)
+                              est_box_windows, construire_inventaire_ansible,
+                              construire_inventaire_ansible_yaml)
 from core.schema import valider_config
 from core.presets import PRESETS, obtenir_preset
 from core.lint import linter_vagrantfile
 from core.export_projet import construire_zip_projet
+from core.topologie import construire_topologie_mermaid
+from core.doctor import diagnostiquer, au_moins_un_provider
 
 
 def test_nom_variable_prefixe_les_chiffres():
@@ -314,6 +317,87 @@ def test_export_zip_avec_inventaire():
     import io
     zf = zipfile.ZipFile(io.BytesIO(archive))
     assert "inventaire-ansible.ini" in zf.namelist()
+
+
+def test_nouveaux_presets_presents():
+    attendus = {"hashistack", "matomo", "minecraft", "openvpn", "mattermost", "redis-cluster"}
+    assert attendus <= set(PRESETS)
+
+
+def test_preset_redis_cluster_a_trois_noeuds():
+    config = obtenir_preset("redis-cluster")
+    assert len(config["vms"]) == 3
+    noms = {vm["name"] for vm in config["vms"]}
+    assert noms == {"redis-0", "redis-1", "redis-2"}
+
+
+def test_validation_detecte_mot_de_passe_faible():
+    config = {"provider": "virtualbox", "vms": [
+        {"name": "web", "box": "debian/bookworm64", "memory": 1024, "cpus": 1,
+         "ssh_password": "vagrant"}
+    ]}
+    _, avertissements = valider_config(config)
+    assert any("courant" in a for a in avertissements)
+
+
+def test_validation_detecte_port_sensible_expose_publiquement():
+    config = {"provider": "virtualbox", "vms": [
+        {"name": "db", "box": "debian/bookworm64", "memory": 1024, "cpus": 1,
+         "public_network": True, "ports": [{"guest": 3306, "host": 3306}]}
+    ]}
+    _, avertissements = valider_config(config)
+    assert any("réseau public" in a for a in avertissements)
+
+
+def test_validation_avertit_cpu_total_eleve():
+    config = {"provider": "virtualbox", "vms": [
+        {"name": f"vm{i}", "box": "debian/bookworm64", "memory": 512, "cpus": 4}
+        for i in range(5)
+    ]}
+    _, avertissements = valider_config(config)
+    assert any("vCPU total" in a for a in avertissements)
+
+
+def test_inventaire_ansible_yaml_contient_les_hotes():
+    config = obtenir_preset("k3s")
+    yaml = construire_inventaire_ansible_yaml(config)
+    assert "k3s-master:" in yaml
+    assert "ansible_host: 192.168.56.10" in yaml
+    assert "children:" in yaml  # groupe k3s (3 membres)
+
+
+def test_inventaire_ansible_yaml_config_vide():
+    yaml = construire_inventaire_ansible_yaml({"provider": "virtualbox", "vms": []})
+    assert "hosts: {}" in yaml
+
+
+def test_topologie_mermaid_contient_les_vms():
+    config = obtenir_preset("lamp")
+    diagramme = construire_topologie_mermaid(config)
+    assert diagramme.startswith("graph LR")
+    assert "pfsense" in diagramme
+    assert "lamp-server" in diagramme
+    assert "hôte:8080" in diagramme
+
+
+def test_topologie_mermaid_config_vide():
+    diagramme = construire_topologie_mermaid({"provider": "virtualbox", "vms": []})
+    assert "Aucune VM" in diagramme
+
+
+def test_topologie_mermaid_tous_les_presets():
+    for nom in PRESETS:
+        config = obtenir_preset(nom)
+        diagramme = construire_topologie_mermaid(config)
+        assert diagramme.startswith("graph LR"), f"Preset « {nom} » : diagramme invalide"
+
+
+def test_doctor_diagnostique_sans_exploser():
+    rapports = diagnostiquer()
+    assert len(rapports) > 0
+    assert all("nom" in r and "present" in r for r in rapports)
+    # ne doit pas planter même si aucun provider n'est installé sur la machine de test
+    assert au_moins_un_provider(rapports) in (True, False)
 
 
 if __name__ == "__main__":

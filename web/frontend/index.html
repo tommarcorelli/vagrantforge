@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <link rel="stylesheet" href="css/style.css">
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#070a10">
+<meta name="theme-color" content="#6f6bff">
 <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 </head>
@@ -23,17 +23,26 @@
 <!-- ── Barre de navigation ── -->
 <nav class="nav" data-testid="main-nav">
   <span class="logo" data-testid="brand-logo">
-    <span class="logo-badge"><i class="fa-solid fa-hammer"></i></span>
+    <span class="logo-badge"><img src="icons/icon.svg" alt="" width="38" height="38"></span>
     <span class="txt">VagrantForge</span>
   </span>
   <div class="actions">
     <button class="btn ghost" id="theme-btn" data-testid="theme-btn" data-i18n-title="nav.theme" data-i18n-aria="nav.theme" title="Basculer thème clair/sombre" aria-label="Basculer thème clair/sombre"><i class="fa-solid fa-moon"></i></button>
     <button class="btn ghost" id="lang-btn" data-testid="lang-btn">English</button>
     <button class="btn ghost" id="aide-btn" data-testid="help-btn"><i class="fa-regular fa-circle-question"></i> <span data-i18n="nav.aide">Comment ça marche</span></button>
-    <button class="btn ghost" id="partage-btn" data-testid="share-btn"><i class="fa-solid fa-share-nodes"></i> <span data-i18n="nav.partager">Partager</span></button>
-    <button class="btn ghost" id="inventaire-btn" data-testid="inventaire-btn"><i class="fa-solid fa-list-check"></i> <span data-i18n="nav.inventaire">Inventaire Ansible</span></button>
-    <button class="btn ghost" id="import-btn" data-testid="import-btn"><i class="fa-solid fa-file-import"></i> <span data-i18n="nav.importer">Importer</span></button>
-    <button class="btn ghost" id="export-btn" data-testid="export-btn"><i class="fa-solid fa-file-export"></i> <span data-i18n="nav.exporter">Exporter</span></button>
+
+    <div class="more-wrap">
+      <button class="btn ghost" id="more-btn" data-testid="more-btn" aria-haspopup="true" aria-expanded="false"><i class="fa-solid fa-ellipsis"></i> <span data-i18n="nav.plus">Plus</span></button>
+      <div class="more-menu" id="more-menu">
+        <button class="btn ghost" id="topo-btn" data-testid="topo-btn"><i class="fa-solid fa-diagram-project"></i> <span data-i18n="nav.topologie">Topologie</span></button>
+        <button class="btn ghost" id="random-btn" data-testid="random-btn"><i class="fa-solid fa-dice"></i> <span data-i18n="nav.aleatoire">Lab aléatoire</span></button>
+        <button class="btn ghost" id="partage-btn" data-testid="share-btn"><i class="fa-solid fa-share-nodes"></i> <span data-i18n="nav.partager">Partager</span></button>
+        <button class="btn ghost" id="inventaire-btn" data-testid="inventaire-btn" title="Clic : INI. Maj+clic : YAML."><i class="fa-solid fa-list-check"></i> <span data-i18n="nav.inventaire">Inventaire Ansible</span></button>
+        <button class="btn ghost" id="import-btn" data-testid="import-btn"><i class="fa-solid fa-file-import"></i> <span data-i18n="nav.importer">Importer</span></button>
+        <button class="btn ghost" id="export-btn" data-testid="export-btn"><i class="fa-solid fa-file-export"></i> <span data-i18n="nav.exporter">Exporter</span></button>
+      </div>
+    </div>
+
     <button class="btn ghost" id="install-btn" data-testid="install-btn" hidden><i class="fa-solid fa-arrow-down-to-bracket"></i> <span data-i18n="nav.installer">Installer l'appli</span></button>
     <a class="btn primary" href="#app" id="dl-project-btn" data-testid="download-project-btn"><i class="fa-solid fa-download"></i> <span data-i18n="nav.telecharger">Télécharger le projet</span></a>
     <input type="file" id="import-file" accept="application/json,.json" hidden>
@@ -42,6 +51,8 @@
   <div class="menu-mobile" id="menu-mobile">
     <a class="btn ghost" href="#app" data-testid="download-project-btn-mobile"><i class="fa-solid fa-download"></i> Télécharger le projet</a>
     <button class="btn ghost" data-menu="aide"><i class="fa-regular fa-circle-question"></i> Comment ça marche</button>
+    <button class="btn ghost" data-menu="topologie"><i class="fa-solid fa-diagram-project"></i> Topologie</button>
+    <button class="btn ghost" data-menu="aleatoire"><i class="fa-solid fa-dice"></i> Lab aléatoire</button>
     <button class="btn ghost" data-menu="partage"><i class="fa-solid fa-share-nodes"></i> Partager le lien</button>
     <button class="btn ghost" data-menu="inventaire"><i class="fa-solid fa-list-check"></i> Inventaire Ansible</button>
     <button class="btn ghost" data-menu="import"><i class="fa-solid fa-file-import"></i> Importer JSON</button>
@@ -53,7 +64,6 @@
 <!-- ── Hero ── -->
 <header class="hero">
   <div class="hero-inner">
-    <div class="hero-badge" data-testid="hero-badge"><i class="fa-solid fa-hammer"></i> <span data-i18n="hero.badge">Générateur de Vagrantfile · style CasaOS</span></div>
     <h1 class="hero-title"><span data-i18n="hero.titre1">Forge tes labs de VMs</span><br><span class="grad" data-i18n="hero.titre2">sans écrire une ligne de Ruby</span></h1>
     <p class="hero-sub" data-i18n="hero.sous">Décris tes machines dans le formulaire — VagrantForge écrit le <code>Vagrantfile</code>, validé, commenté et prêt à <code>vagrant up</code>. Tout tourne dans ton navigateur.</p>
     <div class="hero-cta">
@@ -180,6 +190,25 @@
   </div>
 </div>
 
+<!-- ── Modale de topologie réseau ── -->
+<div class="overlay" id="overlay-topo">
+  <div class="modal modal-topo">
+    <div class="modal-head">
+      <h2><i class="fa-solid fa-diagram-project"></i> <span data-i18n="topo.titre">Topologie du lab</span></h2>
+      <button class="modal-close" id="topo-close" aria-label="Fermer">×</button>
+    </div>
+    <div class="modal-body">
+      <p class="hint" data-i18n="topo.intro">Vue d'ensemble du réseau : VMs, IP privées, ports redirigés et accès public éventuel.</p>
+      <div id="topo-diagram" class="topo-diagram"></div>
+      <div class="btn-row" style="margin-top:12px;">
+        <button class="btn ghost small" id="topo-copy"><i class="fa-regular fa-copy"></i> <span data-i18n="topo.copier">copier le code Mermaid</span></button>
+        <button class="btn ghost small" id="topo-dl"><i class="fa-solid fa-download"></i> <span data-i18n="topo.telecharger">télécharger (.mmd)</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.0/mermaid.min.js"></script>
 <script src="js/i18n.js"></script>
 <script src="js/donnees.js"></script>
 <script src="js/generateur.js"></script>

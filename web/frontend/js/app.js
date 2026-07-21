@@ -312,7 +312,11 @@ function restaurer(){ try{ const d=JSON.parse(localStorage.getItem(CLE)); if(!d|
 
 function telecharger(blob,nom){ const u=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=u; a.download=nom; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(u); }
 function exporter(){ telecharger(new Blob([JSON.stringify(configCourante(),null,2)],{type:'application/json'}),'vagrantforge.config.json'); }
-function telechargerInventaire(){ telecharger(new Blob([buildAnsibleInventory(configCourante())],{type:'text/plain'}),'inventaire-ansible.ini'); }
+function telechargerInventaire(evt){
+  const yaml = !!(evt && evt.shiftKey);
+  const contenu = yaml ? buildAnsibleInventoryYaml(configCourante()) : buildAnsibleInventory(configCourante());
+  telecharger(new Blob([contenu],{type:'text/plain'}), yaml ? 'inventaire-ansible.yml' : 'inventaire-ansible.ini');
+}
 
 /* ── Thème clair / sombre ─────────────────────────────────── */
 const CLE_THEME='vagrantforge.theme';
@@ -371,6 +375,90 @@ function importer(f){ const r=new FileReader(); r.onload=()=>{ try{ const c=JSON
 
 function rendre(){ renderForm(); renderOutput(); sauver(); }
 
+/* ── Topologie réseau (Mermaid) ─────────────────────────────── */
+let mermaidPret=false;
+async function ouvrirTopologie(){
+  $('#overlay-topo').classList.add('open');
+  const code = buildTopologyMermaid(configCourante());
+  window.__topoMermaid = code;
+  const cible = $('#topo-diagram');
+  if(typeof mermaid==='undefined'){
+    cible.innerHTML = `<pre class="topo-fallback">${code.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</pre><div class="hint">Mermaid.js n'a pas pu se charger (hors-ligne ?) — voici le code brut, à coller sur <a href="https://mermaid.live" target="_blank" rel="noopener">mermaid.live</a>.</div>`;
+    return;
+  }
+  try{
+    if(!mermaidPret){ mermaid.initialize({startOnLoad:false, theme: document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default'}); mermaidPret=true; }
+    const id='mmd-'+Date.now();
+    const {svg} = await mermaid.render(id, code);
+    cible.innerHTML = svg;
+  }catch(e){
+    cible.innerHTML = `<pre class="topo-fallback">${code.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</pre><div class="hint">Rendu impossible (${e.message||e}). Code Mermaid brut ci-dessus.</div>`;
+  }
+}
+function fermerTopologie(){ $('#overlay-topo').classList.remove('open'); }
+
+/* ── Lab aléatoire — pioche un preset au hasard OU compose 2-3 VMs random ── */
+function labAleatoire(){
+  const clesPresets = Object.keys(PRESETS);
+  const composerAuHasard = Math.random() < 0.5;
+  if(!composerAuHasard){
+    const k = clesPresets[Math.floor(Math.random()*clesPresets.length)];
+    loadPreset(k);
+    return;
+  }
+  const toutesLesBoxes = CATALOGUE.flatMap(g=>g.boxes.filter(b=>!b.id.startsWith('gusztavvargadr/')));
+  const nbVms = 2 + Math.floor(Math.random()*3); // 2 à 4
+  const nomsPossibles = ['alpha','bravo','nova','orbit','zenith','flux','cosmo','pulse','delta','quartz','nimbus','vertex'];
+  const sr = sousReseau();
+  vms = [];
+  openStates = {};
+  for(let i=0;i<nbVms;i++){
+    const box = toutesLesBoxes[Math.floor(Math.random()*toutesLesBoxes.length)];
+    const v = makeVM(i);
+    v.name = nomsPossibles[Math.floor(Math.random()*nomsPossibles.length)] + '-' + (i+1);
+    v.box = box.id;
+    v.memory = RAM_NIVEAUX[1+Math.floor(Math.random()*(RAM_NIVEAUX.length-2))][0];
+    v.cpus = CPU_NIVEAUX[Math.floor(Math.random()*Math.min(3,CPU_NIVEAUX.length))][0];
+    v.ip = sr+'.'+(10+i);
+    v.syncedFolder = './'+v.name;
+    if(Math.random()<0.5){ v.ports=[{guest:80,host:8080+i}]; }
+    vms.push(v);
+    openStates[v.id] = i===0;
+  }
+  rendre();
+  confetti();
+}
+
+/* ── Petite pluie de confettis (canvas, zéro dépendance) ────── */
+function confetti(){
+  const nb=80, couleurs=['#6d5efc','#22d3c6','#f5a524','#ef4444','#34d399','#60a5fa'];
+  const canvas=document.createElement('canvas');
+  canvas.style.cssText='position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:9999;';
+  canvas.width=window.innerWidth; canvas.height=window.innerHeight;
+  document.body.appendChild(canvas);
+  const ctx=canvas.getContext('2d');
+  const parts=Array.from({length:nb},()=> ({
+    x: Math.random()*canvas.width, y: -20-Math.random()*canvas.height*0.3,
+    vx: (Math.random()-0.5)*3, vy: 2+Math.random()*3,
+    taille: 4+Math.random()*5, coul: couleurs[Math.floor(Math.random()*couleurs.length)],
+    rot: Math.random()*360, vrot: (Math.random()-0.5)*10,
+  }));
+  let frames=0;
+  const boucle=()=>{
+    frames++;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    parts.forEach(p=>{
+      p.x+=p.vx; p.y+=p.vy; p.rot+=p.vrot;
+      ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot*Math.PI/180);
+      ctx.fillStyle=p.coul; ctx.fillRect(-p.taille/2,-p.taille/2,p.taille,p.taille*0.6);
+      ctx.restore();
+    });
+    if(frames<140) requestAnimationFrame(boucle);
+    else canvas.remove();
+  };
+  requestAnimationFrame(boucle);
+}
+
 function ouvrirAide(){ $('#overlay').classList.add('open'); }
 function fermerAide(){ $('#overlay').classList.remove('open'); }
 
@@ -381,7 +469,10 @@ function init(){
     pentest:['fa-user-secret','ic-red'], monitoring:['fa-chart-line','ic-cyan'],
     elk:['fa-magnifying-glass-chart','ic-amber'], wordpress:['fa-brands fa-wordpress','ic-blue'],
     'gitlab-runner':['fa-brands fa-gitlab','ic-amber'], nextcloud:['fa-cloud','ic-green'],
-    'windows-ad':['fa-desktop','ic-blue']};
+    'windows-ad':['fa-desktop','ic-blue'], hashistack:['fa-cubes','ic-violet'],
+    matomo:['fa-chart-pie','ic-cyan'], minecraft:['fa-cube','ic-green'],
+    openvpn:['fa-lock','ic-amber'], mattermost:['fa-comments','ic-blue'],
+    'redis-cluster':['fa-layer-group','ic-red']};
   $('#presets-grid').innerHTML=Object.entries(PRESETS).map(([k,p])=>{
     const [ic,cls]=ICP[k]||['fa-box','ic-violet'];
     const iconClass = ic.startsWith('fa-brands')?ic:`fa-solid ${ic}`;
@@ -394,22 +485,43 @@ function init(){
   $('#g-subnet').addEventListener('input',()=>{ renderOutput(); sauver(); });
 
   $('#copy-btn').addEventListener('click',async()=>{ try{ await navigator.clipboard.writeText(window.__vf||''); const f=$('#flash'); f.classList.add('show'); setTimeout(()=>f.classList.remove('show'),1400); }catch(e){} });
-  $('#dl-btn').addEventListener('click',()=>telecharger(new Blob([window.__vf||''],{type:'application/octet-stream'}),'Vagrantfile'));
+  $('#dl-btn').addEventListener('click',()=>{
+    telecharger(new Blob([window.__vf||''],{type:'application/octet-stream'}),'Vagrantfile');
+    const {erreurs}=valider($('#g-provider').value,vms);
+    if(!erreurs.length && vms.length) confetti();
+  });
   $('#export-btn').addEventListener('click',exporter);
   $('#import-btn').addEventListener('click',()=>$('#import-file').click());
   $('#import-file').addEventListener('change',e=>{ if(e.target.files[0]) importer(e.target.files[0]); e.target.value=''; });
   $('#aide-btn').addEventListener('click',ouvrirAide);
   $('#modal-close').addEventListener('click',fermerAide);
   $('#overlay').addEventListener('click',e=>{ if(e.target===$('#overlay')) fermerAide(); });
-  document.addEventListener('keydown',e=>{ if(e.key==='Escape') fermerAide(); });
 
   const themeBtn=$('#theme-btn'); if(themeBtn) themeBtn.addEventListener('click',basculerTheme);
   const langBtn=$('#lang-btn'); if(langBtn) langBtn.addEventListener('click',basculerLangue);
   const inventaireBtn=$('#inventaire-btn'); if(inventaireBtn) inventaireBtn.addEventListener('click',telechargerInventaire);
   const partageBtn=$('#partage-btn'); if(partageBtn) partageBtn.addEventListener('click',partagerLien);
+  const topoBtn=$('#topo-btn'); if(topoBtn) topoBtn.addEventListener('click',ouvrirTopologie);
+  const topoClose=$('#topo-close'); if(topoClose) topoClose.addEventListener('click',fermerTopologie);
+  const overlayTopo=$('#overlay-topo'); if(overlayTopo) overlayTopo.addEventListener('click',e=>{ if(e.target===overlayTopo) fermerTopologie(); });
+  const topoCopy=$('#topo-copy'); if(topoCopy) topoCopy.addEventListener('click',async()=>{ try{ await navigator.clipboard.writeText(window.__topoMermaid||''); }catch(e){} });
+  const topoDl=$('#topo-dl'); if(topoDl) topoDl.addEventListener('click',()=>telecharger(new Blob([window.__topoMermaid||''],{type:'text/plain'}),'topologie.mmd'));
+  const randomBtn=$('#random-btn'); if(randomBtn) randomBtn.addEventListener('click',labAleatoire);
+
+  const moreBtn=$('#more-btn'), moreMenu=$('#more-menu');
+  if(moreBtn && moreMenu){
+    moreBtn.addEventListener('click',e=>{
+      e.stopPropagation();
+      const ouvert = moreMenu.classList.toggle('open');
+      moreBtn.setAttribute('aria-expanded', ouvert ? 'true':'false');
+    });
+    moreMenu.querySelectorAll('.btn').forEach(b=>b.addEventListener('click',()=>{ moreMenu.classList.remove('open'); moreBtn.setAttribute('aria-expanded','false'); }));
+    document.addEventListener('click',e=>{ if(!moreMenu.contains(e.target) && e.target!==moreBtn){ moreMenu.classList.remove('open'); moreBtn.setAttribute('aria-expanded','false'); } });
+  }
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ fermerAide(); fermerTopologie(); if(moreMenu) moreMenu.classList.remove('open'); } });
 
   $('#hamburger').addEventListener('click',()=>$('#menu-mobile').classList.toggle('open'));
-  $('#menu-mobile').querySelectorAll('[data-menu]').forEach(b=>b.addEventListener('click',()=>{ const a=b.getAttribute('data-menu'); $('#menu-mobile').classList.remove('open'); if(a==='aide') ouvrirAide(); if(a==='import') $('#import-file').click(); if(a==='export') exporter(); if(a==='inventaire') telechargerInventaire(); if(a==='partage') partagerLien(); if(a==='lang') basculerLangue(); }));
+  $('#menu-mobile').querySelectorAll('[data-menu]').forEach(b=>b.addEventListener('click',()=>{ const a=b.getAttribute('data-menu'); $('#menu-mobile').classList.remove('open'); if(a==='aide') ouvrirAide(); if(a==='topologie') ouvrirTopologie(); if(a==='aleatoire') labAleatoire(); if(a==='import') $('#import-file').click(); if(a==='export') exporter(); if(a==='inventaire') telechargerInventaire(); if(a==='partage') partagerLien(); if(a==='lang') basculerLangue(); }));
   document.querySelectorAll('.mobile-tabs button').forEach(b=>b.addEventListener('click',()=>{ document.body.dataset.vue=b.getAttribute('data-vue'); document.querySelectorAll('.mobile-tabs button').forEach(x=>x.classList.remove('actif')); b.classList.add('actif'); }));
 
   if(chargerDepuisHash()) rendre();

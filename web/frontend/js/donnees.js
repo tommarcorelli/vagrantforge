@@ -241,4 +241,27 @@ const PRESETS = {
     _vmp('win-client','gusztavvargadr/windows-11',4096,2,sr,91,[],
       "# Rejoindre le domaine (une fois le DC prêt) :\n# Add-Computer -DomainName 'lab.local' -Restart\n",
       {guestOs:'windows', winrmUsername:'vagrant', winrmPassword:'vagrant'})]},
+  hashistack: {t:'HashiCorp Stack', d:'Consul + Vault + Nomad, serveur + client.', build:sr=>[
+    _vmp('hashi-server','debian/bookworm64',2048,2,sr,100,[{guest:8500,host:8500},{guest:8200,host:8200},{guest:4646,host:4646}],
+      "apt-get update -y\napt-get install -y gnupg software-properties-common curl lsb-release\ncurl -fsSL https://apt.releases.hashicorp.com/gpg | gpg --dearmor -o /usr/share/keyrings/hashicorp.gpg\necho \"deb [signed-by=/usr/share/keyrings/hashicorp.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main\" > /etc/apt/sources.list.d/hashicorp.list\napt-get update -y && apt-get install -y consul vault nomad\n# Démarrage dev (NON adapté à la prod) :\n# consul agent -dev -client 0.0.0.0 &\n# vault server -dev -dev-listen-address=0.0.0.0:8200 &\n# nomad agent -dev -bind 0.0.0.0 &\n"),
+    _vmp('hashi-client','debian/bookworm64',1536,1,sr,101,[],
+      "apt-get update -y\napt-get install -y gnupg software-properties-common curl lsb-release\ncurl -fsSL https://apt.releases.hashicorp.com/gpg | gpg --dearmor -o /usr/share/keyrings/hashicorp.gpg\necho \"deb [signed-by=/usr/share/keyrings/hashicorp.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main\" > /etc/apt/sources.list.d/hashicorp.list\napt-get update -y && apt-get install -y consul nomad docker.io\n# Rejoindre : nomad agent -client -servers="+sr+".100:4647\n")]},
+  matomo: {t:'Matomo', d:'Analytics web libre (alternative à Google Analytics) + MariaDB.', build:sr=>[
+    _vmp('matomo','debian/bookworm64',1536,1,sr,110,[{guest:80,host:8084}],
+      "apt-get update -y\napt-get install -y apache2 mariadb-server php php-mysql php-gd php-curl php-mbstring php-xml php-json\nsystemctl enable --now apache2 mariadb\nmysql -e \"CREATE DATABASE matomo; CREATE USER 'matomo'@'localhost' IDENTIFIED BY 'matomo';\nGRANT ALL PRIVILEGES ON matomo.* TO 'matomo'@'localhost'; FLUSH PRIVILEGES;\"\ncd /tmp && wget -q https://builds.matomo.org/matomo-latest.zip\napt-get install -y unzip && unzip -q matomo-latest.zip -d /var/www/\nchown -R www-data:www-data /var/www/matomo\n# Assistant d'installation web à finir sur http://"+sr+".110/\n")]},
+  minecraft: {t:'Serveur Minecraft', d:'Serveur Minecraft Java (vanilla), pour un lab qui change du DevOps.', build:sr=>[
+    _vmp('minecraft','debian/bookworm64',3072,2,sr,120,[{guest:25565,host:25565}],
+      "apt-get update -y\napt-get install -y openjdk-21-jre-headless screen\nmkdir -p /opt/minecraft && cd /opt/minecraft\n# Remplace l'URL par le lien « server.jar » officiel de la version voulue\nwget -q -O server.jar <URL_SERVER_JAR>\necho 'eula=true' > eula.txt\ncat > /etc/systemd/system/minecraft.service <<'UNIT'\n[Unit]\nDescription=Serveur Minecraft\nAfter=network.target\n[Service]\nWorkingDirectory=/opt/minecraft\nExecStart=/usr/bin/java -Xmx2G -Xms1G -jar server.jar nogui\nRestart=on-failure\n[Install]\nWantedBy=multi-user.target\nUNIT\nsystemctl daemon-reload\nsystemctl enable --now minecraft\n# Connexion : "+sr+".120:25565\n")]},
+  openvpn: {t:'Passerelle OpenVPN', d:'VPN avec easy-rsa, en pont sur le réseau public.', build:sr=>[
+    _vmp('openvpn-gw','debian/bookworm64',1024,1,sr,130,[{guest:1194,host:1194}],
+      "apt-get update -y\napt-get install -y openvpn easy-rsa\nmake-cadir /etc/openvpn/easy-rsa\n# Génération PKI à finir à la main : ./easyrsa init-pki && ./easyrsa build-ca ...\necho 1 > /proc/sys/net/ipv4/ip_forward\necho 'net.ipv4.ip_forward=1' >> /etc/sysctl.conf\n# Config serveur type dans /etc/openvpn/server.conf (port 1194 udp)\n",
+      {publicNetwork:true})]},
+  mattermost: {t:'Mattermost', d:"Chat d'équipe libre (alternative à Slack) via Docker.", build:sr=>[
+    _vmp('mattermost','debian/bookworm64',2048,2,sr,140,[{guest:8065,host:8065}],
+      "apt-get update -y\napt-get install -y curl ca-certificates\ncurl -fsSL https://get.docker.com | sh\nmkdir -p /opt/mattermost && cd /opt/mattermost\ncat > docker-compose.yml <<'YAML'\nservices:\n  mattermost:\n    image: mattermost/mattermost-team-edition:latest\n    ports: [\"8065:8065\"]\n    volumes: [\"./data:/mattermost/data\"]\nYAML\ndocker compose up -d\n")]},
+  'redis-cluster': {t:'Cluster Redis', d:'3 nœuds Redis en mode cluster, réplication automatique.', build:sr=>[0,1,2].map(i=>{
+    const port=7000+i;
+    return _vmp('redis-'+i,'debian/bookworm64',768,1,sr,150+i,[{guest:port,host:port}],
+      "apt-get update -y\napt-get install -y redis-server\nsed -i 's/^port .*/port "+port+"/' /etc/redis/redis.conf\nsed -i 's/^# cluster-enabled no/cluster-enabled yes/' /etc/redis/redis.conf\nsed -i 's/^bind .*/bind 0.0.0.0/' /etc/redis/redis.conf\nsystemctl restart redis-server\n# Une fois les 3 nœuds up, sur l'un d'eux :\n# redis-cli --cluster create "+[0,1,2].map(j=>sr+'.'+(150+j)+':'+(7000+j)).join(' ')+" --cluster-replicas 0\n");
+  })},
 };

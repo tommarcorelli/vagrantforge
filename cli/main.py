@@ -13,7 +13,10 @@ Exemples :
     forge verifier-box                        # compare le catalogue à Vagrant Cloud
     forge versions-box debian/bookworm64      # liste les vraies versions publiées
     forge inventaire config.json -o hosts.ini # inventaire Ansible (INI)
+    forge inventaire config.json --format yaml -o hosts.yml  # inventaire Ansible (YAML)
     forge exporter config.json -o projet.zip  # projet complet en .zip (Vagrantfile + arbo + README)
+    forge topologie config.json               # diagramme Mermaid du réseau du lab
+    forge doctor                              # diagnostique Vagrant/VirtualBox/libvirt en local
 """
 
 import argparse
@@ -32,12 +35,16 @@ for _flux in (sys.stdout, sys.stderr):
 # Permet l'exécution directe (python cli/main.py) comme via `python -m cli.main`.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.generateur import construire_vagrantfile, construire_inventaire_ansible  # noqa: E402
+from core.generateur import (                                    # noqa: E402
+    construire_vagrantfile, construire_inventaire_ansible, construire_inventaire_ansible_yaml,
+)
 from core.schema import valider_config, BOX_PROVIDERS         # noqa: E402
 from core.presets import PRESETS, obtenir_preset               # noqa: E402
 from core.lint import linter_vagrantfile                       # noqa: E402
 from core.verif_box import verifier_catalogue, recuperer_versions_distantes  # noqa: E402
 from core.export_projet import construire_zip_projet            # noqa: E402
+from core.topologie import construire_topologie_mermaid         # noqa: E402
+from core.doctor import diagnostiquer, au_moins_un_provider      # noqa: E402
 
 
 class C:
@@ -154,8 +161,43 @@ def cmd_inventaire(args):
         err(f"{C.ROUGE}{C.GRAS}Génération annulée : {len(erreurs)} erreur(s).{C.RAZ} "
             f"Utilise --forcer pour passer outre.")
         sys.exit(1)
-    contenu = construire_inventaire_ansible(config)
+    contenu = (construire_inventaire_ansible_yaml(config) if args.format == "yaml"
+               else construire_inventaire_ansible(config))
     ecrire_sortie(contenu, args.output)
+    return 0
+
+
+def cmd_topologie(args):
+    config = charger_json(args.config)
+    erreurs, avertissements = valider_config(config)
+    afficher_diagnostics(erreurs, avertissements)
+    if erreurs and not args.forcer:
+        err(f"{C.ROUGE}{C.GRAS}Génération annulée : {len(erreurs)} erreur(s).{C.RAZ} "
+            f"Utilise --forcer pour passer outre.")
+        sys.exit(1)
+    contenu = construire_topologie_mermaid(config)
+    ecrire_sortie(contenu, args.output)
+    if not args.output or args.output == "-":
+        err(f"{C.BLEU}Astuce : colle ce diagramme sur https://mermaid.live pour le visualiser.{C.RAZ}")
+    return 0
+
+
+def cmd_doctor(args):
+    print(f"{C.GRAS}Diagnostic de l'environnement local :{C.RAZ}")
+    rapports = diagnostiquer()
+    for r in rapports:
+        if r["present"]:
+            print(f"  {C.VERT}✓ {r['nom']:<38}{C.RAZ} {r['version'] or r['chemin']}")
+        elif r["obligatoire"]:
+            print(f"  {C.ROUGE}✗ {r['nom']:<38} introuvable (obligatoire pour vagrant up){C.RAZ}")
+        else:
+            print(f"  {C.JAUNE}· {r['nom']:<38} non détecté{C.RAZ}")
+    print()
+    if not au_moins_un_provider(rapports):
+        print(f"{C.ROUGE}Aucun provider Vagrant détecté (VirtualBox / VMware / libvirt). "
+              f"« vagrant up » échouera tant qu'aucun n'est installé.{C.RAZ}")
+        return 1
+    print(f"{C.VERT}Au moins un provider Vagrant est disponible.{C.RAZ}")
     return 0
 
 
@@ -254,11 +296,22 @@ def construire_parser():
     lp = sous.add_parser("presets", help="Liste les presets disponibles.")
     lp.set_defaults(fonc=cmd_presets)
 
-    inv = sous.add_parser("inventaire", help="Génère un inventaire Ansible (INI) depuis une config JSON.")
+    inv = sous.add_parser("inventaire", help="Génère un inventaire Ansible (INI ou YAML) depuis une config JSON.")
     inv.add_argument("config", help="Chemin du JSON, ou '-' pour stdin.")
     inv.add_argument("-o", "--output", help="Fichier de sortie (défaut : stdout).")
     inv.add_argument("--forcer", action="store_true", help="Génère malgré les erreurs de validation.")
+    inv.add_argument("--format", choices=["ini", "yaml"], default="ini",
+                      help="Format de l'inventaire (défaut : ini).")
     inv.set_defaults(fonc=cmd_inventaire)
+
+    topo = sous.add_parser("topologie", help="Génère un diagramme Mermaid de la topologie du lab.")
+    topo.add_argument("config", help="Chemin du JSON, ou '-' pour stdin.")
+    topo.add_argument("-o", "--output", help="Fichier de sortie (défaut : stdout).")
+    topo.add_argument("--forcer", action="store_true", help="Génère malgré les erreurs de validation.")
+    topo.set_defaults(fonc=cmd_topologie)
+
+    doc = sous.add_parser("doctor", help="Diagnostique l'environnement local (Vagrant, providers, Ruby…).")
+    doc.set_defaults(fonc=cmd_doctor)
 
     ex = sous.add_parser("exporter", help="Exporte un projet complet en .zip (Vagrantfile + arborescence + README).")
     ex.add_argument("config", help="Chemin du JSON, ou '-' pour stdin.")

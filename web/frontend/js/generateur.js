@@ -47,9 +47,41 @@ function blocLocale(vn, locale, keymap){
   return `    ${vn}.vm.provision "shell", inline: <<-SHELL\n${s}    SHELL\n`;
 }
 
+/* Pont snake_case → camelCase pour les VMs.
+ *
+ * `configCourante()` (app.js) produit un objet cfg en snake_case (même
+ * convention que core/schema.py côté Python), mais le code plus bas de ce
+ * fichier a été écrit contre des clés camelCase (v.publicNetwork,
+ * v.boxVersion, v.sshUsername, v.rootPassword, d.sizeGb…). Sans ce pont,
+ * ces champs sont silencieusement `undefined` : le réseau public, les
+ * identifiants SSH/WinRM, le mot de passe root et la taille des disques
+ * additionnels disparaissaient du Vagrantfile généré côté navigateur (et
+ * donc du fichier téléchargé) alors que la config les contenait bel et
+ * bien. Corrigé une fois ici plutôt que dans chaque fonction. */
+function normaliserVMs(vms){
+  return (vms||[]).map(v=>({
+    ...v,
+    boxVersion: v.boxVersion ?? v.box_version,
+    guestOs: v.guestOs ?? v.guest_os,
+    publicNetwork: v.publicNetwork ?? v.public_network ?? false,
+    syncedFolder: v.syncedFolder ?? v.synced_folder,
+    disableSyncedFolder: v.disableSyncedFolder ?? v.disable_synced_folder ?? false,
+    sshUsername: v.sshUsername ?? v.ssh_username,
+    sshPassword: v.sshPassword ?? v.ssh_password,
+    winrmUsername: v.winrmUsername ?? v.winrm_username,
+    winrmPassword: v.winrmPassword ?? v.winrm_password,
+    rootPassword: v.rootPassword ?? v.root_password,
+    provisionType: v.provisionType ?? (v.provision && v.provision.type),
+    provisionScript: v.provisionScript ?? (v.provision && v.provision.script),
+    extraDisks: (v.extraDisks ?? v.extra_disks ?? []).map(d=>({
+      ...d, sizeGb: d.sizeGb ?? d.size_gb,
+    })),
+  }));
+}
+
 function buildVagrantfile(cfg){
   const pg = cfg.provider || 'virtualbox';
-  const vms = cfg.vms || [];
+  const vms = normaliserVMs(cfg.vms || []);
   const ram = vms.reduce((s,v)=>s+(parseInt(v.memory)||0),0);
   const cpu = vms.reduce((s,v)=>s+(parseInt(v.cpus)||0),0);
   const jour = new Date().toISOString().slice(0,10);
@@ -123,7 +155,7 @@ function buildVagrantfile(cfg){
 /* Inventaire Ansible (INI) — miroir de core/generateur.py::construire_inventaire_ansible. */
 function groupeAnsible(nom){ const b=(nom||'').split(/[-_]/)[0]; return b||'vagrantforge'; }
 function buildAnsibleInventory(cfg){
-  const vms = cfg.vms||[];
+  const vms = normaliserVMs(cfg.vms||[]);
   if(!vms.length) return '# Aucune VM dans la config : inventaire vide.\n';
   const groupes = {};
   let o = '# Inventaire Ansible généré par VagrantForge — statique, format INI.\n';
@@ -150,6 +182,64 @@ function buildAnsibleInventory(cfg){
   });
   return o.replace(/\n+$/,'\n');
 }
+/* Inventaire Ansible (YAML) — miroir de core/generateur.py::construire_inventaire_ansible_yaml. */
+function buildAnsibleInventoryYaml(cfg){
+  const vms = normaliserVMs(cfg.vms||[]);
+  if(!vms.length) return '# Aucune VM dans la config : inventaire vide.\nall:\n  hosts: {}\n';
+  const groupes = {};
+  const ligneHote = v=>{
+    const nom=v.name||'vm', ip=v.ip||nom, windows=estBoxWindows(v);
+    const varsHote=[`ansible_host: ${ip}`];
+    if(windows){
+      varsHote.push('ansible_connection: winrm','ansible_winrm_transport: basic','ansible_port: 5985');
+      if(v.winrmUsername) varsHote.push(`ansible_user: ${v.winrmUsername}`);
+      if(v.winrmPassword) varsHote.push(`ansible_password: ${v.winrmPassword}`);
+    } else {
+      varsHote.push(`ansible_user: ${v.sshUsername||'vagrant'}`);
+      if(v.sshPassword) varsHote.push(`ansible_password: ${v.sshPassword}`);
+    }
+    return [`    ${nom}:`, ...varsHote.map(l=>`      ${l}`)];
+  };
+  vms.forEach(v=>{ const g=groupeAnsible(v.name||'vm'); (groupes[g]=groupes[g]||[]).push(v); });
+  let sortie = ['# Inventaire Ansible généré par VagrantForge — YAML.',
+    '# Utilisation : ansible-playbook -i inventaire.yml playbook.yml',
+    'all:', '  vars:', "    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'", '  hosts:'];
+  vms.forEach(v=>{ sortie = sortie.concat(ligneHote(v)); });
+  const groupesMulti = Object.entries(groupes).filter(([,m])=>m.length>=2);
+  if(groupesMulti.length){
+    sortie.push('  children:');
+    groupesMulti.forEach(([g,membres])=>{
+      sortie.push(`    ${g}:`); sortie.push('      hosts:');
+      membres.forEach(v=>sortie.push(`        ${v.name||'vm'}: {}`));
+    });
+  }
+  return sortie.join('\n')+'\n';
+}
+
+/* Diagramme de topologie réseau (Mermaid) — miroir de core/topologie.py. */
+function buildTopologyMermaid(cfg){
+  const vms = normaliserVMs(cfg.vms||[]);
+  if(!vms.length) return 'graph LR\n  vide["Aucune VM dans la config"]\n';
+  const lignes = ['graph LR', '  reseau(("Réseau privé<br/>Vagrant"))'];
+  vms.forEach(v=>{
+    const vn = nomVariable(v.name);
+    const icone = estBoxWindows(v) ? '🪟' : '🐧';
+    const etiquette = [icone, v.name||'vm', v.box||'?', `${v.memory||'?'} Mo · ${v.cpus||'?'} vCPU`];
+    if(v.ip) etiquette.push(v.ip);
+    lignes.push(`  ${vn}["${etiquette.join('<br/>')}"]`);
+    lignes.push(`  reseau --- ${vn}`);
+    (v.ports||[]).forEach(p=>{
+      if(p.guest==null||p.host==null) return;
+      const hoteId = `hote_${vn}_${p.host}`;
+      lignes.push(`  ${hoteId}(["hôte:${p.host}"])`);
+      lignes.push(`  ${hoteId} -.->|forward| ${vn}`);
+      lignes.push(`  ${vn} -.-|:${p.guest}| ${hoteId}`);
+    });
+    if(v.publicNetwork) lignes.push(`  internet((Internet)) --- ${vn}`);
+  });
+  return lignes.join('\n')+'\n';
+}
+
 function highlightRuby(code){
   const lignes = code.split('\n').map(line=>{
     let l = line.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');

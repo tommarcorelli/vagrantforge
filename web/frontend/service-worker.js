@@ -4,7 +4,7 @@
    réseau, sans passer par le cache. Un SW ne s'active pas en file:// —
    normal, l'app fonctionne aussi bien sans lui dans ce cas. */
 
-const CACHE = 'vagrantforge-v1';
+const CACHE = 'vagrantforge-v3';
 const FICHIERS_APP_SHELL = [
   './',
   './index.html',

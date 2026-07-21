@@ -34,16 +34,35 @@ commenté et **validé**. Trois interfaces, **un seul cœur** partagé :
 - **Presets prêts à l'emploi** : `solo`, `k3s`, `lamp`, `devsecops`, `pentest`,
   `monitoring` (Prometheus/Grafana), `elk` (Elasticsearch/Kibana), `wordpress`,
   `gitlab-runner`, `nextcloud`, `windows-ad` (contrôleur de domaine Active
-  Directory + poste client, WinRM).
+  Directory + poste client, WinRM), `hashistack` (Consul + Vault + Nomad),
+  `matomo` (analytics web libre), `minecraft` (serveur Java, pour changer du
+  DevOps), `openvpn` (passerelle VPN), `mattermost` (chat d'équipe via
+  Docker), `redis-cluster` (3 nœuds, mode cluster).
+- **Diagramme de topologie réseau** : un bouton « 🗺️ Topologie » génère un
+  diagramme Mermaid du lab (VMs, IP, ports redirigés, accès public), rendu
+  directement dans le navigateur — copiable/téléchargeable en `.mmd`.
+  `forge topologie config.json`, ou `POST /api/topologie`.
+- **Lab aléatoire** : un bouton « 🎲 » pioche un preset au hasard ou compose
+  2 à 4 VMs random pour explorer l'outil sans réfléchir — avec une petite
+  pluie de confettis à la clé.
+- **Diagnostic de l'environnement local** : `forge doctor` vérifie ce qui
+  est réellement installé (Vagrant, VirtualBox/VMware/libvirt, Ruby,
+  Ansible, Git) avant que tu ne perdes du temps sur un `vagrant up` qui
+  échoue faute de provider.
+- **Sécurité renforcée** : la validation détecte désormais les mots de
+  passe évidents (`vagrant`, `admin`, `123456`…) et alerte quand un port
+  sensible (SSH, RDP, MySQL, PostgreSQL, MongoDB, Redis, Elasticsearch…)
+  est exposé via `public_network`.
 - **Disques additionnels par VM** : ajoute un ou plusieurs disques virtuels
   en plus du disque système (VirtualBox `createhd`/`storageattach`
   idempotent, libvirt `lv.storage`) — utile pour séparer les données du
   système.
-- **Inventaire Ansible** : génère un inventaire statique (format INI) à
-  partir de la config, avec groupes automatiques par préfixe de nom
+- **Inventaire Ansible** : génère un inventaire statique en **INI ou YAML**
+  à partir de la config, avec groupes automatiques par préfixe de nom
   (`k3s-master`/`k3s-worker1` → groupe `[k3s]`) et détection SSH/WinRM.
-  `forge inventaire config.json`, `POST /api/inventaire`, ou le bouton
-  « Inventaire Ansible » côté web.
+  `forge inventaire config.json [--format yaml]`, `POST
+  /api/inventaire[?format=yaml]`, ou le bouton « Inventaire Ansible » côté
+  web (Maj+clic pour le YAML).
 - **Export de projet complet en .zip** : Vagrantfile + `README.md` généré +
   arborescence des dossiers partagés (`.gitkeep`) + inventaire Ansible en
   option, prêt à dézipper et lancer. `forge exporter config.json -o
@@ -146,8 +165,15 @@ cat exemples/lab-web.json | python cli/main.py generer -
 # Générer avec un gabarit personnalisé (en-tête/agencement maison)
 python cli/main.py generer exemples/lab-web.json --gabarit exemples/gabarit-simple.txt
 
-# Générer un inventaire Ansible (INI) depuis une config
+# Générer un inventaire Ansible (INI par défaut, ou YAML) depuis une config
 python cli/main.py inventaire exemples/lab-web.json -o inventaire.ini
+python cli/main.py inventaire exemples/lab-web.json --format yaml -o inventaire.yml
+
+# Générer un diagramme de topologie réseau (Mermaid)
+python cli/main.py topologie exemples/lab-web.json -o topologie.mmd
+
+# Diagnostiquer l'environnement local (Vagrant, VirtualBox/VMware/libvirt, Ruby, Ansible…)
+python cli/main.py doctor
 
 # Exporter un projet complet en .zip (Vagrantfile + arborescence + README)
 python cli/main.py exporter exemples/lab-web.json -o projet.zip --avec-inventaire
@@ -330,9 +356,11 @@ vagrantforge/
 ├── core/                 cœur partagé (zéro dépendance)
 │   ├── generateur.py     construction du Vagrantfile + inventaire Ansible + gabarits
 │   ├── schema.py         validation + table de compat box/provider
-│   ├── presets.py        labs prêts à l'emploi (11 presets)
+│   ├── presets.py        labs prêts à l'emploi (17 presets)
 │   ├── lint.py           lint structurel du Vagrantfile généré (+ ruby -c si dispo)
 │   ├── verif_box.py      vérification du catalogue de box vs Vagrant Cloud
+│   ├── topologie.py      diagramme de topologie réseau (Mermaid)
+│   ├── doctor.py         diagnostic de l'environnement local (Vagrant, providers…)
 │   └── export_projet.py  export d'un projet complet en .zip
 ├── cli/main.py           interface ligne de commande
 ├── web/

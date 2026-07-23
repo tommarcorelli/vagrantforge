@@ -86,6 +86,81 @@ vagrantforge/
   client de test), `wireguard` (VPN moderne, alternative à `openvpn`).
   Ajoutés aux deux côtés (`core/presets.py` + `js/donnees.js`) + icônes
   dans `app.js` (`ICP`) + tests dans `tests/test_generateur.py`.
+- **2 presets supplémentaires** : `samba-ad` (contrôleur AD via Samba 4,
+  alternative libre à `windows-ad`), `reverse-proxy-nginx` (proxy TLS
+  auto-signé devant 2 apps backend). Même traitement des deux côtés + tests.
+- **3 presets « services réseau classiques »** : `nfs-file-server` (partage
+  NFS + client), `mail-server` (Postfix + Dovecot, SMTP/IMAP), `squid-proxy`
+  (proxy sortant avec ACL de filtrage web). Même traitement des deux côtés
+  (core Python + JS + icône `ICP` + tests). Total presets : 21. Suite de
+  tests : 53/53 passent.
+- **Dette technique comblée : parité JS/Python testée automatiquement.**
+  Jusqu'ici la « règle d'or » (toute évolution de génération/validation
+  répercutée des deux côtés) n'était vérifiée qu'à l'œil — le commentaire de
+  `normaliserVMs` dans `generateur.js` documentait d'ailleurs un vrai bug de
+  divergence déjà rencontré. Ajout de `tests/js_parity_harness.cjs` (exécute
+  `generateur.js`/`donnees.js` hors navigateur via le module `vm` de Node,
+  sans DOM nécessaire) et `tests/test_parite_js.py` (compare, pour chaque
+  preset + quelques configs synthétiques ciblant disques/locale/Ansible/
+  Windows/vmware, le Vagrantfile + inventaire Ansible (INI/YAML) + topologie
+  Mermaid générés côté JS contre le cœur Python, caractère pour caractère).
+  Sauté proprement si `node` est absent du PATH (même logique que `ruby -c`
+  dans `core/lint.py`). **A immédiatement trouvé et corrigé 2 vraies
+  divergences pré-existantes** (commentaires manquants côté JS sur
+  `public_network` et sur le réglage réseau `vmware_desktop`). CI
+  (`.github/workflows/tests.yml`) mise à jour pour installer Node dans le
+  job pytest, sinon ces tests y seraient silencieusement sautés. Suite
+  totale : 133 tests passent (dont 80 de parité).
+- **Audit complet du reste du projet** (API Flask, `core/verif_box.py`,
+  `core/export_projet.py`) — a trouvé et corrigé 3 bugs réels de plus, et
+  comblé deux modules sans AUCUNE couverture de tests :
+  1. `web/api/main.py` : un corps JSON non-objet (liste, chaîne…) posté sur
+     `/api/exporter` faisait planter l'endpoint en 500 (`AttributeError`
+     sur `corps.get(...)` appelé sur une liste). Factorisé dans un helper
+     `_extraire_config()` réutilisé par les 4 endpoints POST, et couvert par
+     un nouveau `tests/test_api.py` (32 tests, aucune couverture avant —
+     CI mise à jour pour installer Flask dans le job pytest).
+  2. `core/verif_box.py` : logique réseau/erreurs dupliquée à l'identique
+     entre `recuperer_providers_distants` et `recuperer_versions_distantes`
+     — factorisée dans `_recuperer_json_box()`. Couvert par un nouveau
+     `tests/test_verif_box.py` (10 tests, réseau moqué, aucune couverture
+     avant).
+  3. `core/export_projet.py` : `dossier.lstrip("./")` retire un ENSEMBLE de
+     caractères (pas le préfixe littéral) — un synced_folder nommé
+     `.config` perdait son point, et un chemin avec `..` ailleurs qu'au
+     tout début (ex. `data/../../etc`) n'était pas filtré (risque de
+     zip-slip). Remplacé par une suppression explicite du préfixe `./` +
+     un rejet de tout segment `..`. 2 tests de régression ajoutés dans
+     `tests/test_generateur.py`.
+  Suite totale après audit : **177 tests passent**.
+- **8 nouveaux presets** (thème Kubernetes / CI-CD / sauvegarde, à la
+  demande explicite) : `kubeadm` (cluster K8s complet control-plane +
+  2 workers, CNI Calico — pendant « lourd » au `k3s` déjà présent),
+  `docker-swarm` (manager + 2 workers, orchestration plus légère),
+  `jenkins` (contrôleur + agent Docker en SSH), `github-runner` (runner
+  GitHub Actions auto-hébergé), `awx` (Ansible AWX/Tower libre),
+  `gitea` (Git auto-hébergé léger via Docker), `borg-backup` (sauvegarde
+  chiffrée/dédupliquée en SSH + cron), `duplicati` (sauvegarde chiffrée
+  avec interface web, complément GUI à `borg-backup`). Même traitement
+  systématique des deux côtés (`core/presets.py` + `js/donnees.js`,
+  vérifié par script de diff des clés) + icône dédiée dans `ICP`
+  (`app.js`) + tests de verrouillage dans `tests/test_generateur.py`.
+  Piège rencontré deux fois : le régex `REGEX_IPV4` de `schema.py`
+  rejette tout octet > 255 (donc pas de suffixe d'IP à 3 chiffres du
+  genre `.260` sans vérifier — l'erreur est silencieuse tant qu'on ne
+  relance pas `valider_config`). Total presets : **33**. Suite de
+  tests : **208/208** passent.
+- **Audit de vérification systématique** (suite à une demande explicite
+  « vérifie les codes et tout ») : `pyflakes` sur `core/`, `cli/`,
+  `web/api/` (a trouvé et corrigé un f-string sans placeholder dans
+  `cli/main.py`, cosmétique) ; `node --check` sur les 5 JS du frontend ;
+  script de diff des clés `PRESETS` Python vs JS (33/33, aucun écart) ;
+  script vérifiant que les 33 presets passent tous par `valider_config`,
+  `construire_topologie_mermaid`, `construire_inventaire_ansible(_yaml)`
+  et `construire_zip_projet` sans erreur ; CLI de bout en bout (`preset`
+  + `valider`) sur les 8 nouveaux ; `forge doctor` ; parité i18n FR/EN
+  (119 clés) rejouée manuellement comme le fait la CI. Rien d'autre
+  trouvé — le reste du projet est propre.
 
 ### ⚠️ Piège à connaître (aperçu du code)
 `highlightRuby()` (dans `js/generateur.js`) ne renvoie PAS du texte brut : il renvoie

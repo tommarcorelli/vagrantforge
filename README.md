@@ -39,7 +39,22 @@ commenté et **validé**. Trois interfaces, **un seul cœur** partagé :
   DevOps), `openvpn` (passerelle VPN), `mattermost` (chat d'équipe via
   Docker), `redis-cluster` (3 nœuds, mode cluster), `haproxy-lb` (répartition
   de charge, HAProxy + 2 backends web), `dns-dhcp` (BIND9 + isc-dhcp-server +
-  client de test), `wireguard` (passerelle VPN moderne et légère).
+  client de test), `wireguard` (passerelle VPN moderne et légère), `samba-ad`
+  (contrôleur de domaine AD via Samba 4, alternative libre à `windows-ad`),
+  `reverse-proxy-nginx` (reverse proxy TLS + 2 applications backend),
+  `nfs-file-server` (partage NFS + client qui le monte), `mail-server`
+  (Postfix + Dovecot, SMTP/IMAP), `squid-proxy` (proxy web sortant avec
+  ACL de filtrage), `kubeadm` (cluster Kubernetes complet : control-plane +
+  2 workers, CNI Calico — pour un vrai K8s « from scratch » face au K3s
+  léger déjà présent), `jenkins` (contrôleur CI/CD + agent Docker relié en
+  SSH), `borg-backup` (serveur de sauvegarde BorgBackup + client planifié
+  par cron, chiffré et dédupliqué), `gitea` (serveur Git auto-hébergé
+  léger via Docker, alternative à GitLab pour un lab plus modeste),
+  `github-runner` (runner GitHub Actions auto-hébergé avec Docker),
+  `awx` (AWX/Ansible Tower libre, automatisation via interface web),
+  `duplicati` (sauvegarde chiffrée avec interface web et planification,
+  complément « GUI » à `borg-backup`), `docker-swarm` (cluster manager +
+  2 workers, orchestration de conteneurs plus légère que `kubeadm`/`k3s`).
 - **Diagramme de topologie réseau** : un bouton « 🗺️ Topologie » génère un
   diagramme Mermaid du lab (VMs, IP, ports redirigés, accès public), rendu
   directement dans le navigateur — copiable/téléchargeable en `.mmd`.
@@ -145,6 +160,46 @@ web/frontend/index.html
 ```
 
 Tout se passe dans le navigateur (génération, validation, presets). Aucun serveur requis.
+
+### Guide d'utilisation du site
+
+1. **Réglages globaux** : choisis ton provider (VirtualBox si tu ne sais pas)
+   et le sous-réseau privé (`192.168.56` par défaut convient à 99 % des cas).
+2. **Démarrage rapide (optionnel)** : un clic sur un preset remplit tout le
+   formulaire d'un coup — pratique pour partir d'un lab existant plutôt que
+   d'une page blanche, puis ajuster.
+3. **Machines virtuelles** : ajoute une VM, choisis son OS (par son nom, ex.
+   « Debian 12 »), sa RAM/CPU, et ce qu'elle installe au démarrage
+   (« Provisioning »). Chaque champ a une bulle d'aide **ⓘ** — survole-la en
+   cas de doute plutôt que de deviner.
+   - **Identifiants SSH/root** : laisse-les vides sauf besoin précis —
+     Vagrant se connecte tout seul avec sa propre clé.
+   - **Réseau en pont (`public_network`)** : ne coche que si tu sais
+     pourquoi (ça expose la VM sur ton vrai réseau).
+4. **Aperçu à droite** : le Vagrantfile se génère en direct, avec les
+   **diagnostics** juste en dessous — les ✗ bloquent une génération propre,
+   les ⚠ sont à lire mais souvent sans gravité pour un lab jetable.
+5. **Télécharge** (bouton en haut) dans un **dossier vide**, puis
+   `vagrant up` dedans.
+
+Le bouton **« Comment ça marche »** (en haut, ou dans le menu mobile) reprend
+ce guide dans l'appli, avec un glossaire des termes (box, provider, IP
+privée, port redirigé, provisioning, identifiants, réseau en pont).
+
+### Application desktop (Windows/.exe, macOS, Linux)
+
+Le même site, mais en application installable — plus besoin d'ouvrir un
+navigateur. Voir [`desktop/README.md`](desktop/README.md) pour construire
+l'installateur :
+
+```powershell
+cd desktop
+npm install
+npm run dist:win   # → desktop/dist/VagrantForge-Setup-<version>.exe
+```
+
+Aucune duplication de code : c'est le même `web/frontend/` chargé tel quel
+dans une fenêtre Electron.
 
 ### CLI
 
@@ -358,7 +413,7 @@ vagrantforge/
 ├── core/                 cœur partagé (zéro dépendance)
 │   ├── generateur.py     construction du Vagrantfile + inventaire Ansible + gabarits
 │   ├── schema.py         validation + table de compat box/provider
-│   ├── presets.py        labs prêts à l'emploi (17 presets)
+│   ├── presets.py        labs prêts à l'emploi (33 presets)
 │   ├── lint.py           lint structurel du Vagrantfile généré (+ ruby -c si dispo)
 │   ├── verif_box.py      vérification du catalogue de box vs Vagrant Cloud
 │   ├── topologie.py      diagramme de topologie réseau (Mermaid)

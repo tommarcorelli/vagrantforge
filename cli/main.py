@@ -229,7 +229,7 @@ def cmd_versions_box(args):
     print(f"{C.GRAS}Versions publiées pour {args.box} (les plus récentes d'abord) :{C.RAZ}")
     for v in versions:
         print(f"  {C.BLEU}{v}{C.RAZ}")
-    print(f"\nÀ coller dans « Version de l'image » (champ box_version).")
+    print("\nÀ coller dans « Version de l'image » (champ box_version).")
     return 0
 
 

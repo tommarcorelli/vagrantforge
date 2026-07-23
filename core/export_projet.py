@@ -85,8 +85,15 @@ def construire_zip_projet(config, vagrantfile, inventaire_ansible=None):
                 continue
             # Uniquement les chemins relatifs simples (./nom, nom/sous-dossier) :
             # un chemin absolu pointe déjà vers quelque chose qui existe côté hôte.
-            propre = dossier.lstrip("./").strip("/")
-            if not propre or propre in dossiers_vus or dossier.startswith(("/", "~")) or ":" in dossier:
+            # Note : `lstrip("./")` retire un ENSEMBLE de caractères, pas le
+            # préfixe "./" — sur un dossier ".config" ça mangerait le point
+            # utile. On retire donc explicitement le préfixe "./" s'il est
+            # présent, rien d'autre.
+            propre = dossier[2:] if dossier.startswith("./") else dossier
+            propre = propre.strip("/")
+            segments = [s for s in propre.split("/") if s]
+            if (not propre or propre in dossiers_vus or dossier.startswith(("/", "~"))
+                    or ":" in dossier or ".." in segments):
                 continue
             dossiers_vus.add(propre)
             zf.writestr(f"{propre}/.gitkeep", "")

@@ -1,0 +1,55 @@
+{
+  "name": "vagrantforge-desktop",
+  "version": "1.0.0",
+  "description": "VagrantForge en application de bureau (Electron) — même interface que la version web, plus besoin d'ouvrir un navigateur.",
+  "main": "main.js",
+  "author": "Tom Marcorelli",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist:win": "electron-builder --win nsis",
+    "dist:linux": "electron-builder --linux AppImage",
+    "dist:mac": "electron-builder --mac dmg"
+  },
+  "devDependencies": {
+    "electron": "^32.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.tommarcorelli.vagrantforge",
+    "productName": "VagrantForge",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "package.json",
+      "!**/*.map"
+    ],
+    "extraResources": [
+      {
+        "from": "../web/frontend",
+        "to": "frontend",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": ["nsis"],
+      "artifactName": "VagrantForge-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "linux": {
+      "target": ["AppImage"],
+      "category": "Development"
+    },
+    "mac": {
+      "target": ["dmg"]
+    }
+  }
+}

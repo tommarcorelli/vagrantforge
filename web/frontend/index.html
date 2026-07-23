@@ -183,7 +183,16 @@
         <dt data-i18n="modal.ip.t">IP privée (host-only)</dt><dd data-i18n="modal.ip.d">L'adresse pour joindre la VM depuis ton PC et pour que les VMs se parlent entre elles, sur un réseau isolé. Ex. <code>192.168.56.10</code>.</dd>
         <dt data-i18n="modal.port.t">port redirigé</dt><dd data-i18n="modal.port.d">Rend un service de la VM accessible depuis ton PC : « guest 80 → host 8080 » = <code>localhost:8080</code> ouvre le port 80 de la VM.</dd>
         <dt data-i18n="modal.prov.t">provisioning</dt><dd data-i18n="modal.prov.d">Les commandes lancées automatiquement au premier démarrage (installer nginx, Docker…). Utilise l'aide « insérer une commande ».</dd>
+        <dt data-i18n="modal.creds.t">identifiants SSH/mot de passe root</dt><dd data-i18n="modal.creds.d">Laisse tout vide dans la plupart des cas : Vagrant se connecte tout seul avec sa propre clé SSH. Ne remplis « SSH — mot de passe » ou « mot de passe root » que si tu as un besoin précis (login GUI, mot de passe imposé par un TP).</dd>
+        <dt data-i18n="modal.pont.t">réseau en pont (public_network)</dt><dd data-i18n="modal.pont.d">Met la VM directement sur ton vrai réseau (au lieu du réseau privé Vagrant isolé). À activer seulement si tu sais pourquoi — sinon laisse décoché.</dd>
       </dl>
+
+      <h3 data-i18n="modal.avant.titre">Avant de lancer <code>vagrant up</code></h3>
+      <ul class="steps">
+        <li data-i18n="modal.avant.1">Installe <b>Vagrant</b> et au moins un provider (VirtualBox est le plus simple). Si tu utilises la CLI VagrantForge, <code>forge doctor</code> vérifie tout ça pour toi.</li>
+        <li data-i18n="modal.avant.2">Télécharge le Vagrantfile dans un <b>dossier vide</b> dédié à ce lab (un dossier = un lab).</li>
+        <li data-i18n="modal.avant.3">Regarde les <b>diagnostics</b> sous l'aperçu : les ✗ (erreurs) empêchent une génération propre, les ⚠ (avertissements) sont à lire mais souvent sans gravité pour un lab jetable.</li>
+      </ul>
 
       <div class="partage-note"><i class="fa-solid fa-share-nodes"></i> <span data-i18n="modal.astuce"><b>Astuce :</b> tu peux exporter ta config en JSON (bouton « Exporter ») pour la sauvegarder ou la partager, et la réimporter plus tard. Le bouton <b>« Télécharger le projet »</b> te donne tout le code (web + CLI + API) dans une archive.</span></div>
     </div>

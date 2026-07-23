@@ -102,7 +102,7 @@ function buildVagrantfile(cfg){
     if(v.boxVersion) o += `    ${vn}.vm.box_version = "${escRuby(v.boxVersion)}"\n`;
     o += `    ${vn}.vm.hostname = "${escRuby(v.name)}"\n`;
     if(v.ip) o += `    ${vn}.vm.network "private_network", ip: "${escRuby(v.ip)}"\n`;
-    if(v.publicNetwork) o += `    ${vn}.vm.network "public_network"\n`;
+    if(v.publicNetwork) o += `    ${vn}.vm.network "public_network"  # pont réseau, interface choisie au démarrage\n`;
     (v.ports||[]).forEach(p=>{ o += `    ${vn}.vm.network "forwarded_port", guest: ${p.guest}, host: ${p.host}, auto_correct: true, id: "port-${p.guest}"\n`; });
     if(v.disableSyncedFolder) o += `    ${vn}.vm.synced_folder ".", "/vagrant", disabled: true\n`;
     else if(v.syncedFolder){ const ft = prov==='vmware_desktop'?'vmware':(prov==='virtualbox'?'virtualbox':null); o += `    ${vn}.vm.synced_folder "${escRuby(v.syncedFolder)}", "/vagrant"${ft?`, type: "${ft}"`:''}\n`; }
@@ -120,7 +120,7 @@ function buildVagrantfile(cfg){
       o += `    ${vn}.vm.provider "virtualbox" do |vb|\n      vb.name = "${escRuby(v.name)}"\n      vb.memory = ${v.memory}\n      vb.cpus = ${v.cpus}\n      vb.gui = ${v.gui?'true':'false'}\n    end\n`;
     } else if(prov==='vmware_desktop'){
       o += `    ${vn}.vm.provider "vmware_desktop" do |vw|\n      vw.gui = ${v.gui?'true':'false'}\n      vw.vmx["displayName"] = "${escRuby(v.name)}"\n      vw.vmx["memsize"] = "${v.memory}"\n      vw.vmx["numvcpus"] = "${v.cpus}"\n      vw.vmx["cpuid.coresPerSocket"] = "${v.cpus}"\n`;
-      if(v.ip) o += `      vw.vmx["ethernet0.virtualDev"] = "vmxnet3"\n`;
+      if(v.ip) o += `      vw.vmx["ethernet0.virtualDev"] = "vmxnet3"  # évite les soucis d'IP statique avec l'adaptateur par défaut\n`;
       o += `    end\n`;
     } else if(prov==='libvirt'){
       o += `    ${vn}.vm.provider "libvirt" do |lv|\n      lv.memory = ${v.memory}\n      lv.cpus = ${v.cpus}\n    end\n`;

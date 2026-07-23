@@ -58,6 +58,19 @@ def statique(fichier):
     return send_from_directory(FRONTEND, fichier)
 
 
+def _extraire_config(corps):
+    """Normalise le corps JSON reçu par les endpoints POST : accepte soit la
+    config brute (comportement historique), soit {"config": {...}, "gabarit":
+    "texte optionnel"}. Toujours sûr même si le corps n'est pas un objet JSON
+    (tableau, nombre, chaîne…) — évite un 500 sur `corps.get(...)`.
+    """
+    if not isinstance(corps, dict):
+        return {}, None
+    if isinstance(corps.get("config"), dict):
+        return corps["config"], corps.get("gabarit") or None
+    return corps, None
+
+
 @app.get("/api/presets")
 def api_presets():
     return jsonify({nom: desc for nom, (desc, _) in PRESETS.items()})
@@ -83,14 +96,7 @@ def api_valider():
 @app.post("/api/generer")
 def api_generer():
     corps = request.get_json(silent=True) or {}
-    # Rétrocompatible : accepte soit la config JSON brute (comportement
-    # historique), soit {"config": {...}, "gabarit": "texte optionnel"}.
-    if "config" in corps and isinstance(corps.get("config"), dict):
-        config = corps["config"]
-        gabarit = corps.get("gabarit") or None
-    else:
-        config = corps
-        gabarit = None
+    config, gabarit = _extraire_config(corps)
 
     erreurs, avertissements = valider_config(config)
     if erreurs and not request.args.get("forcer"):
@@ -114,7 +120,7 @@ def api_inventaire():
     """Génère un inventaire Ansible (INI par défaut, YAML avec ?format=yaml)
     depuis une config. Corps : la config JSON brute, ou {"config": {...}}."""
     corps = request.get_json(silent=True) or {}
-    config = corps["config"] if "config" in corps and isinstance(corps.get("config"), dict) else corps
+    config, _ = _extraire_config(corps)
     erreurs, avertissements = valider_config(config)
     if erreurs and not request.args.get("forcer"):
         return jsonify({"erreurs": erreurs, "avertissements": avertissements, "inventaire": None}), 422
@@ -132,7 +138,7 @@ def api_topologie():
     """Génère un diagramme Mermaid de la topologie du lab. Corps : la config
     JSON brute, ou {"config": {...}}."""
     corps = request.get_json(silent=True) or {}
-    config = corps["config"] if "config" in corps and isinstance(corps.get("config"), dict) else corps
+    config, _ = _extraire_config(corps)
     erreurs, avertissements = valider_config(config)
     if erreurs and not request.args.get("forcer"):
         return jsonify({"erreurs": erreurs, "avertissements": avertissements, "mermaid": None}), 422
@@ -148,15 +154,15 @@ def api_exporter():
     """Exporte un projet complet en .zip (Vagrantfile + arborescence + README).
     Corps : {"config": {...}, "gabarit": "texte optionnel", "avec_inventaire": bool}."""
     corps = request.get_json(silent=True) or {}
-    config = corps.get("config") if isinstance(corps.get("config"), dict) else corps
-    gabarit = corps.get("gabarit") or None
+    config, gabarit = _extraire_config(corps)
+    avec_inventaire = isinstance(corps, dict) and corps.get("avec_inventaire")
 
     erreurs, avertissements = valider_config(config)
     if erreurs and not request.args.get("forcer"):
         return jsonify({"erreurs": erreurs, "avertissements": avertissements}), 422
 
     vagrantfile = construire_vagrantfile(config, gabarit)
-    inventaire = construire_inventaire_ansible(config) if corps.get("avec_inventaire") else None
+    inventaire = construire_inventaire_ansible(config) if avec_inventaire else None
     archive = construire_zip_projet(config, vagrantfile, inventaire)
     return send_file(
         io.BytesIO(archive),

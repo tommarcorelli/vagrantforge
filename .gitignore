@@ -17,3 +17,7 @@ Vagrantfile
 .idea/
 .DS_Store
 Thumbs.db
+
+# App desktop (Electron)
+desktop/node_modules/
+desktop/dist/

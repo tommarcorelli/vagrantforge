@@ -138,7 +138,9 @@ function renderForm(nomsErr){
         </label>
         <input type="text" data-vm="${v.id}" data-field="ip" value="${v.ip}" placeholder="vide = IP automatique">
 
-        <label>${t('vm.provider')}</label>
+        <label>${t('vm.provider')}
+          <span class="info" title="${t('vm.provider.tip')}">i</span>
+        </label>
         <select data-vm="${v.id}" data-field="provider">
           <option value="" ${v.provider===''?'selected':''}>— hérite du global —</option>
           <option value="virtualbox" ${v.provider==='virtualbox'?'selected':''}>VirtualBox</option>
@@ -147,9 +149,9 @@ function renderForm(nomsErr){
         </select>
 
         <div class="checkbox-row"><input type="checkbox" data-vm="${v.id}" data-field="gui" ${v.gui?'checked':''}>
-          <label>${t('vm.gui')}</label></div>
+          <label>${t('vm.gui')} <span class="info" title="${t('vm.gui.tip')}">i</span></label></div>
         <div class="checkbox-row"><input type="checkbox" data-vm="${v.id}" data-field="publicNetwork" ${v.publicNetwork?'checked':''}>
-          <label>${t('vm.pont')}</label></div>
+          <label>${t('vm.pont')} <span class="info" title="${t('vm.pont.tip')}">i</span></label></div>
 
         <label>${t('vm.dossier')}
           <span class="info" title="${t('vm.dossier.tip')}">i</span>
@@ -159,21 +161,31 @@ function renderForm(nomsErr){
           <label>${t('vm.dossier_off')}</label></div>
 
         ${estBoxWindows(v) ? `
+        <label style="margin-bottom:-4px;">${LANGUE_COURANTE==='en'?'Windows credentials':'Identifiants Windows'}
+          <span class="info" title="${t('vm.winrm.tip')}">i</span>
+        </label>
         <div class="row2">
           <div><label>${t('vm.winrm_user')}</label>
             <input type="text" data-vm="${v.id}" data-field="winrmUsername" value="${v.winrmUsername||''}" placeholder="vagrant"></div>
           <div><label>${t('vm.winrm_pass')}</label>
             <input type="text" data-vm="${v.id}" data-field="winrmPassword" value="${v.winrmPassword||''}" placeholder="vagrant"></div>
         </div>
-        <label>${t('vm.admin_pass')}</label>
+        <label>${t('vm.admin_pass')}
+          <span class="info" title="${t('vm.admin_pass.tip')}">i</span>
+        </label>
         <input type="text" data-vm="${v.id}" data-field="rootPassword" value="${v.rootPassword||''}" placeholder="vide = inchangé">` : `
+        <label style="margin-bottom:-4px;">${LANGUE_COURANTE==='en'?'SSH credentials':'Identifiants SSH'}
+          <span class="info" title="${t('vm.ssh.tip')}">i</span>
+        </label>
         <div class="row2">
           <div><label>${t('vm.ssh_user')}</label>
             <input type="text" data-vm="${v.id}" data-field="sshUsername" value="${v.sshUsername||''}" placeholder="vagrant"></div>
           <div><label>${t('vm.ssh_pass')}</label>
             <input type="text" data-vm="${v.id}" data-field="sshPassword" value="${v.sshPassword||''}" placeholder="clé par défaut"></div>
         </div>
-        <label>${t('vm.root_pass')}</label>
+        <label>${t('vm.root_pass')}
+          <span class="info" title="${t('vm.root_pass.tip')}">i</span>
+        </label>
         <input type="text" data-vm="${v.id}" data-field="rootPassword" value="${v.rootPassword||''}" placeholder="vide = inchangé">`}
 
         <label>${t('vm.ports')}
@@ -188,7 +200,9 @@ function renderForm(nomsErr){
         <div class="ports-list">${disques}</div>
         <div class="btn-row"><button class="btn small" data-action="adddisk" data-vm="${v.id}">+ ${LANGUE_COURANTE==='en'?'disk':'disque'}</button></div>
 
-        <label>${t('vm.provision')}</label>
+        <label>${t('vm.provision')}
+          <span class="info" title="${t('vm.provision.tip')}">i</span>
+        </label>
         <select data-vm="${v.id}" data-field="provisionType">
           <option value="shell" ${v.provisionType==='shell'?'selected':''}>${LANGUE_COURANTE==='en'?'shell script':'script shell'}</option>
           <option value="ansible" ${v.provisionType==='ansible'?'selected':''}>${LANGUE_COURANTE==='en'?'Ansible playbook':'playbook Ansible'}</option>
@@ -202,7 +216,9 @@ function renderForm(nomsErr){
           <label>${t('vm.script')}</label>
           <textarea data-vm="${v.id}" data-field="provisionScript" rows="5">${v.provisionScript}</textarea>`:''}
         ${v.provisionType==='ansible'?`
-          <label>${t('vm.playbook')}</label>
+          <label>${t('vm.playbook')}
+            <span class="info" title="${t('vm.playbook.tip')}">i</span>
+          </label>
           <input type="text" data-vm="${v.id}" data-field="provisionScript" value="${(v.provisionScript||'').includes('.yml')?v.provisionScript:'provisioning/playbook.yml'}">`:''}
 
         <div class="btn-row">
@@ -474,7 +490,14 @@ function init(){
     openvpn:['fa-lock','ic-amber'], mattermost:['fa-comments','ic-blue'],
     'redis-cluster':['fa-layer-group','ic-red'],
     'haproxy-lb':['fa-scale-balanced','ic-cyan'], 'dns-dhcp':['fa-network-wired','ic-green'],
-    wireguard:['fa-shield-halved','ic-violet']};
+    wireguard:['fa-shield-halved','ic-violet'],
+    'samba-ad':['fa-sitemap','ic-blue'], 'reverse-proxy-nginx':['fa-globe','ic-cyan'],
+    'nfs-file-server':['fa-folder-open','ic-amber'], 'mail-server':['fa-envelope','ic-red'],
+    'squid-proxy':['fa-filter','ic-green'],
+    kubeadm:['fa-dharmachakra','ic-blue'], jenkins:['fa-brands fa-jenkins','ic-red'],
+    'borg-backup':['fa-box-archive','ic-amber'], gitea:['fa-code-branch','ic-green'],
+    'github-runner':['fa-brands fa-github','ic-violet'], awx:['fa-robot','ic-red'],
+    duplicati:['fa-clock-rotate-left','ic-cyan'], 'docker-swarm':['fa-brands fa-docker','ic-blue']};
   $('#presets-grid').innerHTML=Object.entries(PRESETS).map(([k,p])=>{
     const [ic,cls]=ICP[k]||['fa-box','ic-violet'];
     const iconClass = ic.startsWith('fa-brands')?ic:`fa-solid ${ic}`;

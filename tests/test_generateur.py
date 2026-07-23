@@ -319,10 +319,84 @@ def test_export_zip_avec_inventaire():
     assert "inventaire-ansible.ini" in zf.namelist()
 
 
+def test_export_zip_conserve_le_point_dun_dossier_cache():
+    """Régression : `lstrip("./")` mangeait le point d'un dossier commençant
+    par un point (ex. .config) car lstrip retire un ENSEMBLE de caractères,
+    pas le préfixe littéral "./"."""
+    import zipfile
+    import io
+    config = {
+        "provider": "virtualbox", "box_check_update": False,
+        "vms": [{"name": "vm1", "box": "debian/bookworm64", "memory": 512, "cpus": 1,
+                  "synced_folder": ".config"}],
+    }
+    vf = construire_vagrantfile(config)
+    archive = construire_zip_projet(config, vf)
+    noms = zipfile.ZipFile(io.BytesIO(archive)).namelist()
+    assert ".config/.gitkeep" in noms
+
+
+def test_export_zip_rejette_la_traversee_de_chemin():
+    """Un synced_folder contenant un segment ".." ne doit jamais produire une
+    entrée de zip hors de l'archive (zip-slip)."""
+    import zipfile
+    import io
+    config = {
+        "provider": "virtualbox", "box_check_update": False,
+        "vms": [{"name": "vm1", "box": "debian/bookworm64", "memory": 512, "cpus": 1,
+                  "synced_folder": "data/../../../etc"}],
+    }
+    vf = construire_vagrantfile(config)
+    archive = construire_zip_projet(config, vf)
+    noms = zipfile.ZipFile(io.BytesIO(archive)).namelist()
+    assert not any(".." in n for n in noms)
+    assert noms == ["Vagrantfile", "README.md"]  # aucun .gitkeep ajouté, dossier rejeté
+
+
 def test_nouveaux_presets_presents():
     attendus = {"hashistack", "matomo", "minecraft", "openvpn", "mattermost", "redis-cluster",
-                "haproxy-lb", "dns-dhcp", "wireguard"}
+                "haproxy-lb", "dns-dhcp", "wireguard", "samba-ad", "reverse-proxy-nginx",
+                "nfs-file-server", "mail-server", "squid-proxy"}
     assert attendus <= set(PRESETS)
+
+
+def test_presets_k8s_cicd_backup_presents():
+    attendus = {"kubeadm", "jenkins", "borg-backup", "gitea"}
+    assert attendus <= set(PRESETS)
+
+
+def test_preset_kubeadm_a_trois_vms_et_calico():
+    config = obtenir_preset("kubeadm")
+    assert [vm["name"] for vm in config["vms"]] == ["k8s-control", "k8s-worker1", "k8s-worker2"]
+    vf = construire_vagrantfile(config)
+    assert "kubeadm init" in vf
+    assert "calico.yaml" in vf
+
+
+def test_preset_jenkins_expose_le_port_8080():
+    config = obtenir_preset("jenkins")
+    controller = next(vm for vm in config["vms"] if vm["name"] == "jenkins-controller")
+    assert {"guest": 8080, "host": 8080} in controller["ports"]
+
+
+def test_preset_borg_backup_a_deux_vms():
+    config = obtenir_preset("borg-backup")
+    assert {vm["name"] for vm in config["vms"]} == {"backup-server", "backup-client"}
+
+
+def test_presets_runner_awx_duplicati_presents():
+    attendus = {"github-runner", "awx", "duplicati"}
+    assert attendus <= set(PRESETS)
+
+
+def test_preset_duplicati_expose_le_port_8200():
+    config = obtenir_preset("duplicati")
+    assert {"guest": 8200, "host": 8200} in config["vms"][0]["ports"]
+
+
+def test_preset_docker_swarm_a_trois_vms():
+    config = obtenir_preset("docker-swarm")
+    assert [vm["name"] for vm in config["vms"]] == ["swarm-manager", "swarm-worker1", "swarm-worker2"]
 
 
 def test_preset_redis_cluster_a_trois_noeuds():
@@ -349,6 +423,45 @@ def test_preset_wireguard_expose_le_bon_port():
     vm = config["vms"][0]
     assert vm["ports"] == [{"guest": 51820, "host": 51820}]
     assert vm["public_network"] is True
+
+
+def test_preset_samba_ad_valide():
+    config = obtenir_preset("samba-ad")
+    erreurs, _ = valider_config(config)
+    assert erreurs == []
+    noms = {vm["name"] for vm in config["vms"]}
+    assert noms == {"samba-dc", "client"}
+
+
+def test_preset_reverse_proxy_nginx_a_trois_vms():
+    config = obtenir_preset("reverse-proxy-nginx")
+    noms = {vm["name"] for vm in config["vms"]}
+    assert noms == {"reverse-proxy", "app1", "app2"}
+    proxy = next(vm for vm in config["vms"] if vm["name"] == "reverse-proxy")
+    assert {"guest": 443, "host": 8443} in proxy["ports"]
+
+
+def test_preset_nfs_file_server_valide():
+    config = obtenir_preset("nfs-file-server")
+    erreurs, _ = valider_config(config)
+    assert erreurs == []
+    noms = {vm["name"] for vm in config["vms"]}
+    assert noms == {"nfs-server", "client"}
+
+
+def test_preset_mail_server_expose_smtp_et_imap():
+    config = obtenir_preset("mail-server")
+    vm = next(vm for vm in config["vms"] if vm["name"] == "mail-server")
+    ports_guest = {p["guest"] for p in vm["ports"]}
+    assert {25, 143} <= ports_guest
+
+
+def test_preset_squid_proxy_valide():
+    config = obtenir_preset("squid-proxy")
+    erreurs, _ = valider_config(config)
+    assert erreurs == []
+    vm = next(vm for vm in config["vms"] if vm["name"] == "squid-proxy")
+    assert {"guest": 3128, "host": 3128} in vm["ports"]
 
 
 def test_validation_detecte_mot_de_passe_faible():

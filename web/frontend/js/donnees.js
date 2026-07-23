@@ -280,4 +280,71 @@ const PRESETS = {
     _vmp('wireguard-gw','debian/bookworm64',512,1,sr,180,[{guest:51820,host:51820}],
       "apt-get update -y\napt-get install -y wireguard\numask 077\nwg genkey | tee /etc/wireguard/server_private.key | wg pubkey > /etc/wireguard/server_public.key\ncat > /etc/wireguard/wg0.conf <<CFG\n[Interface]\nAddress = 10.10.10.1/24\nListenPort = 51820\nPrivateKey = $(cat /etc/wireguard/server_private.key)\nPostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE\nPostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE\n# [Peer] à ajouter pour chaque client\nCFG\necho 1 > /proc/sys/net/ipv4/ip_forward\necho 'net.ipv4.ip_forward=1' >> /etc/sysctl.conf\nsystemctl enable --now wg-quick@wg0\n",
       {publicNetwork:true})]},
+  'samba-ad': {t:'AD via Samba 4', d:'Contrôleur de domaine Active Directory libre (alternative Linux à windows-ad).', build:sr=>[
+    _vmp('samba-dc','debian/bookworm64',1536,1,sr,190,[],
+      "apt-get update -y\napt-get install -y samba samba-dsdb-modules samba-vfs-modules winbind krb5-config\nsystemctl stop smbd nmbd winbind 2>/dev/null || true\nmv /etc/samba/smb.conf /etc/samba/smb.conf.bak\nsamba-tool domain provision --use-rfc2307 --realm=LAB.LOCAL --domain=LAB --server-role=dc --dns-backend=SAMBA_INTERNAL --adminpass='Vagrant123!' <<< 'yes'\ncp /var/lib/samba/private/krb5.conf /etc/krb5.conf\nsystemctl enable samba-ad-dc && systemctl restart samba-ad-dc\n# Test : samba-tool user list  /  kinit administrator@LAB.LOCAL\n"),
+    _vmp('client','debian/bookworm64',512,1,sr,191,[],
+      "apt-get update -y\n# Client pour tester la résolution DNS AD : dig @"+sr+".190 lab.local\n")]},
+  'reverse-proxy-nginx': {t:'Reverse proxy Nginx TLS', d:'Nginx en TLS (certificat auto-signé) devant 2 applications backend.', build:sr=>[
+    _vmp('reverse-proxy','debian/bookworm64',1024,1,sr,200,[{guest:443,host:8443},{guest:80,host:8080}],
+      "apt-get update -y\napt-get install -y nginx openssl\nmkdir -p /etc/nginx/ssl\nopenssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/nginx/ssl/lab.key -out /etc/nginx/ssl/lab.crt -subj '/CN=lab.local'\ncat > /etc/nginx/sites-available/reverse-proxy <<CFG\nserver {\n    listen 443 ssl;\n    server_name lab.local;\n    ssl_certificate /etc/nginx/ssl/lab.crt;\n    ssl_certificate_key /etc/nginx/ssl/lab.key;\n    location /app1/ { proxy_pass http://"+sr+".201/; }\n    location /app2/ { proxy_pass http://"+sr+".202/; }\n}\nCFG\nln -sf /etc/nginx/sites-available/reverse-proxy /etc/nginx/sites-enabled/\nrm -f /etc/nginx/sites-enabled/default\nsystemctl enable --now nginx && systemctl restart nginx\n"),
+    _vmp('app1','debian/bookworm64',512,1,sr,201,[],
+      "apt-get update -y\napt-get install -y apache2\necho '<h1>App1</h1>' > /var/www/html/index.html\nsystemctl enable --now apache2\n"),
+    _vmp('app2','debian/bookworm64',512,1,sr,202,[],
+      "apt-get update -y\napt-get install -y apache2\necho '<h1>App2</h1>' > /var/www/html/index.html\nsystemctl enable --now apache2\n")]},
+  'nfs-file-server': {t:'Serveur de fichiers NFS', d:'Partage NFS avec un client qui le monte automatiquement.', build:sr=>[
+    _vmp('nfs-server','debian/bookworm64',768,1,sr,210,[],
+      "apt-get update -y\napt-get install -y nfs-kernel-server\nmkdir -p /srv/partage && chmod 777 /srv/partage\necho '/srv/partage "+sr+".0/24(rw,sync,no_subtree_check,no_root_squash)' >> /etc/exports\nexportfs -ra\nsystemctl enable --now nfs-kernel-server\n"),
+    _vmp('client','debian/bookworm64',512,1,sr,211,[],
+      "apt-get update -y\napt-get install -y nfs-common\nmkdir -p /mnt/partage\necho '"+sr+".210:/srv/partage /mnt/partage nfs defaults 0 0' >> /etc/fstab\nmount -a || true\n# Test : ls /mnt/partage\n")]},
+  'mail-server': {t:'Messagerie Postfix + Dovecot', d:'Serveur SMTP/IMAP avec un client de test.', build:sr=>[
+    _vmp('mail-server','debian/bookworm64',1024,1,sr,220,[{guest:25,host:2525},{guest:143,host:1430}],
+      "export DEBIAN_FRONTEND=noninteractive\napt-get update -y\necho 'postfix postfix/mailname string lab.local' | debconf-set-selections\necho 'postfix postfix/main_mailer_type string Internet Site' | debconf-set-selections\napt-get install -y postfix dovecot-imapd mailutils\npostconf -e 'inet_interfaces = all'\nsystemctl enable --now postfix dovecot\n# Test envoi : echo 'corps' | mail -s 'sujet' user@lab.local\n"),
+    _vmp('client','debian/bookworm64',512,1,sr,221,[],
+      "apt-get update -y\napt-get install -y mailutils\n# Test : echo 'test' | mail -s 'hello' -S smtp=smtp://"+sr+".220:25 user@lab.local\n")]},
+  'squid-proxy': {t:'Proxy web Squid', d:"Proxy sortant avec ACL de filtrage, et un client configuré pour l'utiliser.", build:sr=>[
+    _vmp('squid-proxy','debian/bookworm64',768,1,sr,230,[{guest:3128,host:3128}],
+      "apt-get update -y\napt-get install -y squid\ncat > /etc/squid/conf.d/lab.conf <<CFG\nacl lab_net src "+sr+".0/24\nacl sites_autorises dstdomain .lab.local .debian.org\nhttp_access allow lab_net sites_autorises\nhttp_access deny all\nCFG\nsystemctl enable --now squid && systemctl restart squid\n"),
+    _vmp('client','debian/bookworm64',512,1,sr,231,[],
+      "apt-get update -y\n# Test : http_proxy=http://"+sr+".230:3128 curl -v http://debian.org\n")]},
+  kubeadm: {t:'Kubernetes (kubeadm)', d:'Cluster K8s complet : 1 control-plane + 2 workers, CNI Calico.', build:sr=>{
+    const commun = "apt-get update -y\napt-get install -y ca-certificates curl gnupg apt-transport-https\ncurl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg\necho 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /' > /etc/apt/sources.list.d/kubernetes.list\ncurl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg\necho 'deb [signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian bookworm stable' > /etc/apt/sources.list.d/docker.list\napt-get update -y\napt-get install -y containerd.io kubelet kubeadm kubectl\napt-mark hold kubelet kubeadm kubectl\nswapoff -a\necho 'overlay\\nbr_netfilter' > /etc/modules-load.d/k8s.conf\nmodprobe overlay\nmodprobe br_netfilter\necho 'net.bridge.bridge-nf-call-iptables = 1\\nnet.ipv4.ip_forward = 1' > /etc/sysctl.d/k8s.conf\nsysctl --system\nmkdir -p /etc/containerd\ncontainerd config default > /etc/containerd/config.toml\nsed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml\nsystemctl restart containerd\n";
+    return [
+      _vmp('k8s-control','debian/bookworm64',2560,2,sr,15,[],
+        commun+"kubeadm init --pod-network-cidr=192.168.0.0/16 --apiserver-advertise-address="+sr+".15\nmkdir -p /root/.kube && cp -i /etc/kubernetes/admin.conf /root/.kube/config\nexport KUBECONFIG=/root/.kube/config\nkubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/calico.yaml\nkubeadm token create --print-join-command > /vagrant/join-cluster.sh\n# Commande de jonction écrite dans join-cluster.sh (dossier partagé) pour les workers\n"),
+      _vmp('k8s-worker1','debian/bookworm64',2048,2,sr,16,[],
+        commun+"# Rejoindre : bash /vagrant/../k8s-control/join-cluster.sh (ou kubeadm join <ip>:6443 --token ... --discovery-token-ca-cert-hash ...)\n"),
+      _vmp('k8s-worker2','debian/bookworm64',2048,2,sr,17,[],
+        commun+"# Rejoindre : bash /vagrant/../k8s-control/join-cluster.sh (ou kubeadm join <ip>:6443 --token ... --discovery-token-ca-cert-hash ...)\n"),
+    ];
+  }},
+  jenkins: {t:'CI/CD Jenkins', d:'Contrôleur Jenkins + agent Docker relié en SSH.', build:sr=>[
+    _vmp('jenkins-controller','debian/bookworm64',2048,2,sr,240,[{guest:8080,host:8080},{guest:50000,host:50000}],
+      "apt-get update -y\napt-get install -y openjdk-17-jre-headless curl gnupg\ncurl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key | gpg --dearmor -o /usr/share/keyrings/jenkins.gpg\necho 'deb [signed-by=/usr/share/keyrings/jenkins.gpg] https://pkg.jenkins.io/debian-stable binary/' > /etc/apt/sources.list.d/jenkins.list\napt-get update -y && apt-get install -y jenkins\nsystemctl enable --now jenkins\n# Mot de passe admin initial : cat /var/lib/jenkins/secrets/initialAdminPassword\n"),
+    _vmp('jenkins-agent','debian/bookworm64',1536,1,sr,241,[],
+      "apt-get update -y\napt-get install -y openjdk-17-jre-headless curl ca-certificates\ncurl -fsSL https://get.docker.com | sh\nusermod -aG docker vagrant\n# Agent à relier en SSH depuis Jenkins (Manage Nodes) : IP "+sr+".241, user vagrant\n")]},
+  'borg-backup': {t:'Sauvegarde BorgBackup', d:'Serveur de sauvegarde SSH + client planifié par cron.', build:sr=>[
+    _vmp('backup-server','debian/bookworm64',1024,1,sr,250,[],
+      "apt-get update -y\napt-get install -y borgbackup openssh-server\nmkdir -p /srv/borg-repos && chown vagrant:vagrant /srv/borg-repos\nsu - vagrant -c \"borg init --encryption=repokey-blake2 /srv/borg-repos/lab\"\n# Clé SSH du client à ajouter dans /home/vagrant/.ssh/authorized_keys\n"),
+    _vmp('backup-client','debian/bookworm64',768,1,sr,251,[],
+      "apt-get update -y\napt-get install -y borgbackup\nsu - vagrant -c \"ssh-keygen -t ed25519 -N '' -f ~/.ssh/id_ed25519 -q\"\ncat > /usr/local/bin/sauvegarde-quotidienne.sh <<'SCRIPT'\n#!/bin/sh\nexport BORG_REPO=ssh://vagrant@"+sr+".250/srv/borg-repos/lab\nborg create --stats --compression zstd ::'{hostname}-{now}' /etc /var/www 2>/dev/null\nborg prune --keep-daily=7 --keep-weekly=4 --keep-monthly=6\nSCRIPT\nchmod +x /usr/local/bin/sauvegarde-quotidienne.sh\necho '0 2 * * * root /usr/local/bin/sauvegarde-quotidienne.sh' > /etc/cron.d/borg-backup\n# Copier la clé publique client (~/.ssh/id_ed25519.pub) vers authorized_keys du serveur avant le premier run\n")]},
+  gitea: {t:'Serveur Git Gitea', d:'Git auto-hébergé léger (alternative à GitLab), via Docker.', build:sr=>[
+    _vmp('gitea','debian/bookworm64',1024,1,sr,245,[{guest:3000,host:3300},{guest:22,host:2222}],
+      "apt-get update -y\napt-get install -y curl ca-certificates\ncurl -fsSL https://get.docker.com | sh\nmkdir -p /opt/gitea && cd /opt/gitea\ncat > docker-compose.yml <<'YAML'\nservices:\n  gitea:\n    image: gitea/gitea:latest\n    environment:\n      - USER_UID=1000\n      - USER_GID=1000\n    ports: [\"3000:3000\", \"2222:22\"]\n    volumes: [\"./data:/data\"]\nYAML\ndocker compose up -d\n# Assistant d'installation web sur http://"+sr+".245:3000/ (première connexion)\n")]},
+  'github-runner': {t:'Runner GitHub Actions', d:"Runner GitHub Actions auto-hébergé, avec Docker pour les jobs conteneurisés.", build:sr=>[
+    _vmp('github-runner','debian/bookworm64',2048,2,sr,252,[],
+      "apt-get update -y\napt-get install -y curl ca-certificates tar\ncurl -fsSL https://get.docker.com | sh\nusermod -aG docker vagrant\nmkdir -p /opt/actions-runner && cd /opt/actions-runner\n# Version/URL à adapter (voir la page « Add runner » du dépôt/organisation GitHub) :\ncurl -o runner.tar.gz -L https://github.com/actions/runner/releases/latest/download/actions-runner-linux-x64.tar.gz\ntar xzf runner.tar.gz && chown -R vagrant:vagrant /opt/actions-runner\n# Puis en tant que vagrant : ./config.sh --url https://github.com/<org>/<repo> --token <TOKEN_ENREGISTREMENT>\n# Et : sudo ./svc.sh install && sudo ./svc.sh start\n")]},
+  awx: {t:'AWX (Ansible Tower)', d:"Plateforme d'automatisation Ansible avec interface web, pour piloter des playbooks.", build:sr=>[
+    _vmp('awx','debian/bookworm64',4096,2,sr,253,[{guest:80,host:8087}],
+      "apt-get update -y\napt-get install -y curl ca-certificates git\ncurl -fsSL https://get.docker.com | sh\nmkdir -p /opt/awx && cd /opt/awx\ngit clone -b 23.5.1 --depth 1 https://github.com/ansible/awx.git src\n# Déploiement via awx-operator (Kubernetes) recommandé en prod ; pour un lab, voir\n# le docker-compose de développement documenté dans src/tools/docker-compose/\n# Interface une fois lancée : http://"+sr+".253/\n")]},
+  duplicati: {t:'Duplicati', d:'Sauvegarde chiffrée avec interface web et planification intégrée.', build:sr=>[
+    _vmp('duplicati','debian/bookworm64',1024,1,sr,254,[{guest:8200,host:8200}],
+      "apt-get update -y\napt-get install -y curl ca-certificates\ncurl -fsSL https://get.docker.com | sh\nmkdir -p /opt/duplicati && cd /opt/duplicati\ncat > docker-compose.yml <<'YAML'\nservices:\n  duplicati:\n    image: duplicati/duplicati:latest\n    ports: [\"8200:8200\"]\n    volumes:\n      - \"./config:/config\"\n      - \"./backups:/backups\"\n      - \"/etc:/source/etc:ro\"\n      - \"/var/www:/source/var-www:ro\"\nYAML\ndocker compose up -d\n# Interface web (assistant de sauvegarde) sur http://"+sr+".254:8200/\n")]},
+  'docker-swarm': {t:'Docker Swarm', d:'Cluster léger : 1 manager + 2 workers — alternative simple à K8s.', build:sr=>[
+    _vmp('swarm-manager','debian/bookworm64',1536,1,sr,203,[{guest:8080,host:8088}],
+      "apt-get update -y\napt-get install -y curl ca-certificates\ncurl -fsSL https://get.docker.com | sh\nusermod -aG docker vagrant\ndocker swarm init --advertise-addr "+sr+".203\ndocker swarm join-token worker -q > /vagrant/swarm-join-token.txt\n# Token de jonction écrit dans swarm-join-token.txt (dossier partagé) pour les workers\n# Exemple de service : docker service create --name web --replicas 3 -p 8080:80 nginx\n"),
+    _vmp('swarm-worker1','debian/bookworm64',1024,1,sr,204,[],
+      "apt-get update -y\napt-get install -y curl ca-certificates\ncurl -fsSL https://get.docker.com | sh\nusermod -aG docker vagrant\n# Rejoindre : docker swarm join --token $(cat /vagrant/../swarm-manager/swarm-join-token.txt) "+sr+".203:2377\n"),
+    _vmp('swarm-worker2','debian/bookworm64',1024,1,sr,205,[],
+      "apt-get update -y\napt-get install -y curl ca-certificates\ncurl -fsSL https://get.docker.com | sh\nusermod -aG docker vagrant\n# Rejoindre : docker swarm join --token $(cat /vagrant/../swarm-manager/swarm-join-token.txt) "+sr+".203:2377\n")]},
 };

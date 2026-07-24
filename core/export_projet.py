@@ -40,6 +40,28 @@ def _readme_projet(config, nb_vms, ram_totale, cpu_total):
             f"{vm.get('ip') or 'dynamique'} | {vm.get('memory', '?')} Mo | "
             f"{vm.get('cpus', '?')} |"
         )
+
+    acces = [(vm.get("name", "?"), p) for vm in vms for p in (vm.get("ports") or [])]
+    if acces:
+        lignes += [
+            "",
+            "## Accès (ports exposés)",
+            "",
+            "| VM | Port invité | Depuis ton PC |",
+            "|----|-------------|-----------------|",
+        ]
+        for nom_vm, port in acces:
+            hote = port.get("host")
+            invite = port.get("guest")
+            lignes.append(f"| {nom_vm} | {invite} | `localhost:{hote}` |")
+        lignes.append(
+            "\n*Si c'est un service web, ouvre `http://localhost:<port>` dans ton "
+            "navigateur. Sinon (SSH, base de données, VPN, jeu, etc.), utilise "
+            "l'outil adapté à ce port. `auto_correct: true` — si un port hôte "
+            "est déjà pris, Vagrant en choisit un autre au `vagrant up` : "
+            "vérifie avec `vagrant port <vm>`.*"
+        )
+
     lignes += [
         "",
         "## Commandes utiles",
@@ -57,12 +79,22 @@ def _readme_projet(config, nb_vms, ram_totale, cpu_total):
     return "\n".join(lignes) + "\n"
 
 
+def _gitignore_projet():
+    return "\n".join([
+        "# Généré par VagrantForge — état local Vagrant, à ne jamais committer",
+        ".vagrant/",
+        "*.log",
+        "",
+    ])
+
+
 def construire_zip_projet(config, vagrantfile, inventaire_ansible=None):
     """Construit une archive .zip (bytes) prête à distribuer.
 
     Contenu :
     - `Vagrantfile`
-    - `README.md` (résumé de la config + commandes utiles)
+    - `README.md` (résumé de la config + commandes utiles + accès aux ports exposés)
+    - `.gitignore` (exclut `.vagrant/`, l'état local propre à chaque machine hôte)
     - `<synced_folder>/.gitkeep` pour chaque VM ayant un dossier partagé
       relatif (évite l'erreur Vagrant « host path does not exist »)
     - `inventaire-ansible.ini` si fourni
@@ -75,6 +107,7 @@ def construire_zip_projet(config, vagrantfile, inventaire_ansible=None):
     with zipfile.ZipFile(tampon, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("Vagrantfile", vagrantfile)
         zf.writestr("README.md", _readme_projet(config, len(vms), ram_totale, cpu_total))
+        zf.writestr(".gitignore", _gitignore_projet())
         if inventaire_ansible:
             zf.writestr("inventaire-ansible.ini", inventaire_ansible)
 

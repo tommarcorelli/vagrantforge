@@ -110,6 +110,13 @@
           </label>
         </div>
 
+        <div class="checkbox-row">
+          <input type="checkbox" id="g-hostsfile">
+          <label data-i18n="g.hostsfile">Résolution des noms entre VMs (/etc/hosts)
+            <span class="info" data-i18n-title="g.hostsfile.tip" title="Si coché, chaque VM ayant une IP reçoit une entrée /etc/hosts (ou le fichier hosts Windows) pour toutes les autres VMs de la config — elles peuvent alors se joindre par nom (ping web, curl http://db) sans serveur DNS.">i</span>
+          </label>
+        </div>
+
         <label data-i18n="g.subnet">Réseau privé — plage d'adresses
           <span class="info" data-i18n-title="g.subnet.tip" title="Les VMs communiquent entre elles et avec ton PC sur ce réseau isolé (host-only). Chaque VM prend une adresse ici : .10, .11, .12…">i</span>
         </label>

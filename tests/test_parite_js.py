@@ -118,6 +118,16 @@ CONFIGS_SYNTHETIQUES = {
             "extra_disks": [{"name": "data", "size_gb": 15}],
         }],
     },
+    "hosts_file_mixte": {
+        "provider": "virtualbox", "box_check_update": False, "hosts_file": True,
+        "vms": [
+            {"name": "web", "box": "debian/bookworm64", "memory": 1024, "cpus": 1, "ip": "192.168.56.10"},
+            {"name": "db", "box": "debian/bookworm64", "memory": 1024, "cpus": 1, "ip": "192.168.56.11"},
+            {"name": "win-dc", "box": "gusztavvargadr/windows-server", "guest_os": "windows",
+             "memory": 2048, "cpus": 1, "ip": "192.168.56.90"},
+            {"name": "sans-ip", "box": "debian/bookworm64", "memory": 512, "cpus": 1},
+        ],
+    },
 }
 
 

@@ -25,7 +25,7 @@ function addDisk(id){ const v=vms.find(v=>v.id===id); v.extraDisks.push({name:'d
 function rmDisk(id,i){ const v=vms.find(v=>v.id===id); v.extraDisks.splice(i,1); rendre(); }
 
 function configCourante(){
-  return { provider:$('#g-provider').value, box_check_update:$('#g-boxcheck').checked,
+  return { provider:$('#g-provider').value, box_check_update:$('#g-boxcheck').checked, hosts_file:$('#g-hostsfile').checked,
     vms: vms.map(v=>({ name:v.name, box:v.box, box_version:v.boxVersion, guest_os:v.guestOs||undefined, memory:parseInt(v.memory)||0,
       cpus:parseInt(v.cpus)||0, ip:v.ip, provider:v.provider, gui:v.gui, public_network:v.publicNetwork,
       locale:v.locale, keymap:v.keymap, synced_folder:v.syncedFolder, disable_synced_folder:v.disableSyncedFolder,
@@ -323,8 +323,8 @@ function loadPreset(kind){
   rendre();
 }
 
-function sauver(){ try{ localStorage.setItem(CLE,JSON.stringify({provider:$('#g-provider').value,boxCheck:$('#g-boxcheck').checked,subnet:$('#g-subnet').value,vms,openStates})); }catch(e){} }
-function restaurer(){ try{ const d=JSON.parse(localStorage.getItem(CLE)); if(!d||!Array.isArray(d.vms)||!d.vms.length) return false; $('#g-provider').value=d.provider||'virtualbox'; $('#g-boxcheck').checked=!!d.boxCheck; $('#g-subnet').value=d.subnet||'192.168.56'; vms=d.vms; openStates=d.openStates||{}; return true; }catch(e){ return false; } }
+function sauver(){ try{ localStorage.setItem(CLE,JSON.stringify({provider:$('#g-provider').value,boxCheck:$('#g-boxcheck').checked,hostsFile:$('#g-hostsfile').checked,subnet:$('#g-subnet').value,vms,openStates})); }catch(e){} }
+function restaurer(){ try{ const d=JSON.parse(localStorage.getItem(CLE)); if(!d||!Array.isArray(d.vms)||!d.vms.length) return false; $('#g-provider').value=d.provider||'virtualbox'; $('#g-boxcheck').checked=!!d.boxCheck; $('#g-hostsfile').checked=!!d.hostsFile; $('#g-subnet').value=d.subnet||'192.168.56'; vms=d.vms; openStates=d.openStates||{}; return true; }catch(e){ return false; } }
 
 function telecharger(blob,nom){ const u=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=u; a.download=nom; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(u); }
 function exporter(){ telecharger(new Blob([JSON.stringify(configCourante(),null,2)],{type:'application/json'}),'vagrantforge.config.json'); }
@@ -371,6 +371,7 @@ function chargerDepuisHash(){
     const c=base64VersConfig(m[1]);
     $('#g-provider').value=c.provider||'virtualbox';
     $('#g-boxcheck').checked=!!c.box_check_update;
+    $('#g-hostsfile').checked=!!c.hosts_file;
     vms=(c.vms||[]).map((x,i)=>{
       const v=makeVM(i);
       Object.assign(v,{name:x.name??v.name,box:x.box??v.box,boxVersion:x.box_version??'',guestOs:x.guest_os??'',
@@ -387,7 +388,7 @@ function chargerDepuisHash(){
   }catch(e){ console.warn('Lien de partage invalide', e); return false; }
 }
 
-function importer(f){ const r=new FileReader(); r.onload=()=>{ try{ const c=JSON.parse(r.result); $('#g-provider').value=c.provider||'virtualbox'; $('#g-boxcheck').checked=!!c.box_check_update; vms=(c.vms||[]).map((x,i)=>{ const v=makeVM(i); Object.assign(v,{name:x.name??v.name,box:x.box??v.box,boxVersion:x.box_version??'',guestOs:x.guest_os??'',memory:x.memory??2048,cpus:x.cpus??1,ip:x.ip??'',provider:x.provider??'',gui:!!x.gui,publicNetwork:!!x.public_network,locale:x.locale??'',keymap:x.keymap??'',syncedFolder:x.synced_folder??('./'+(x.name||'vm')),disableSyncedFolder:!!x.disable_synced_folder,sshUsername:x.ssh_username??'',sshPassword:x.ssh_password??'',winrmUsername:x.winrm_username??'',winrmPassword:x.winrm_password??'',rootPassword:x.root_password??'',ports:x.ports??[],extraDisks:(x.extra_disks||[]).map(d=>({name:d.name||'',sizeGb:d.size_gb||10})),provisionType:(x.provision&&x.provision.type)||'none',provisionScript:(x.provision&&x.provision.script)||''}); openStates[v.id]=i===0; return v; }); rendre(); }catch(e){ alert('JSON invalide : '+e.message); } }; r.readAsText(f); }
+function importer(f){ const r=new FileReader(); r.onload=()=>{ try{ const c=JSON.parse(r.result); $('#g-provider').value=c.provider||'virtualbox'; $('#g-boxcheck').checked=!!c.box_check_update; $('#g-hostsfile').checked=!!c.hosts_file; vms=(c.vms||[]).map((x,i)=>{ const v=makeVM(i); Object.assign(v,{name:x.name??v.name,box:x.box??v.box,boxVersion:x.box_version??'',guestOs:x.guest_os??'',memory:x.memory??2048,cpus:x.cpus??1,ip:x.ip??'',provider:x.provider??'',gui:!!x.gui,publicNetwork:!!x.public_network,locale:x.locale??'',keymap:x.keymap??'',syncedFolder:x.synced_folder??('./'+(x.name||'vm')),disableSyncedFolder:!!x.disable_synced_folder,sshUsername:x.ssh_username??'',sshPassword:x.ssh_password??'',winrmUsername:x.winrm_username??'',winrmPassword:x.winrm_password??'',rootPassword:x.root_password??'',ports:x.ports??[],extraDisks:(x.extra_disks||[]).map(d=>({name:d.name||'',sizeGb:d.size_gb||10})),provisionType:(x.provision&&x.provision.type)||'none',provisionScript:(x.provision&&x.provision.script)||''}); openStates[v.id]=i===0; return v; }); rendre(); }catch(e){ alert('JSON invalide : '+e.message); } }; r.readAsText(f); }
 
 function rendre(){ renderForm(); renderOutput(); sauver(); }
 
@@ -507,6 +508,7 @@ function init(){
   $('#add-vm').addEventListener('click',addVM);
   $('#g-provider').addEventListener('change',rendre);
   $('#g-boxcheck').addEventListener('change',()=>{ renderOutput(); sauver(); });
+  $('#g-hostsfile').addEventListener('change',()=>{ renderOutput(); sauver(); });
   $('#g-subnet').addEventListener('input',()=>{ renderOutput(); sauver(); });
 
   $('#copy-btn').addEventListener('click',async()=>{ try{ await navigator.clipboard.writeText(window.__vf||''); const f=$('#flash'); f.classList.add('show'); setTimeout(()=>f.classList.remove('show'),1400); }catch(e){} });

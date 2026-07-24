@@ -161,6 +161,45 @@ vagrantforge/
   + `valider`) sur les 8 nouveaux ; `forge doctor` ; parité i18n FR/EN
   (119 clés) rejouée manuellement comme le fait la CI. Rien d'autre
   trouvé — le reste du projet est propre.
+- **Nouvelle fonctionnalité** (pas un preset, cette fois — le domaine
+  presets K8s/CI-CD/backup était saturé) : `hosts_file` (champ global,
+  booléen, défaut `false`). Si activé, chaque VM ayant une `ip` reçoit un
+  provisioner supplémentaire qui ajoute dans `/etc/hosts` (Linux) ou le
+  fichier hosts Windows (PowerShell, `guest_os: "windows"`) une entrée
+  par IP pour toutes les **autres** VMs de la config — résolution par nom
+  (`ping web`, `curl http://db`) sans DNS, idempotent (pas de doublon au
+  `vagrant provision` répété). Nouvelle fonction `bloc_hosts()` dans
+  `core/generateur.py`, insérée dans `_lignes_vm()` juste avant le
+  provisioning utilisateur (donc les services démarrés par le script
+  du lab peuvent déjà résoudre les autres VMs par nom). Miroir JS
+  (`blocHosts()` dans `generateur.js`), vérifié caractère pour caractère
+  y compris pour le cas Windows (`js_parity_harness.cjs` + nouveau cas
+  synthétique `hosts_file_mixte` dans `test_parite_js.py`). Case à
+  cocher dédiée dans les réglages globaux du web (`#g-hostsfile`),
+  câblée partout où `box_check_update` l'était (config courante,
+  sauvegarde/restauration `localStorage`, lien partagé en base64,
+  import JSON) — piège classique du projet : oublier un des 5 points de
+  câblage rend le champ silencieusement perdu à l'export/import. 3 clés
+  i18n FR/EN ajoutées et vérifiées synchronisées (121 clés au total).
+  3 tests Python dédiés + 1 cas de parité synthétique. Suite complète :
+  **212/212 tests passent**.
+- **Enrichissement de l'export .zip** (`core/export_projet.py`, non
+  mirroré en JS — l'export zip n'existe que côté serveur/CLI, jamais
+  côté navigateur seul) : ajout d'un `.gitignore` (exclut `.vagrant/`,
+  sinon un `git init && git add .` naïf sur le projet exporté committe
+  l'état local propre à chaque machine hôte) et d'une section « Accès
+  (ports exposés) » dans le `README.md` généré, qui liste tous les
+  `forwarded_port` de la config. Piège évité de justesse : ma première
+  version affichait systématiquement `http://localhost:<port>`, ce qui
+  est faux pour la moitié des ports du projet (SSH sur `gitea` :22,
+  SMTP/IMAP sur `mail-server`, JNLP sur `jenkins` :50000, Redis, VPN
+  WireGuard, Minecraft…) — un simple inventaire de tous les ports
+  utilisés par les 33 presets (script one-off) a suffi à s'en rendre
+  compte avant de livrer. Corrigé en présentation neutre
+  (`` `localhost:<port>` `` sans présumer le protocole) + une note
+  explicative unique. 4 tests dédiés ajoutés, 1 test existant adapté
+  (le zip contient désormais aussi `.gitignore`). Suite complète :
+  **215/215 tests passent**.
 
 ### ⚠️ Piège à connaître (aperçu du code)
 `highlightRuby()` (dans `js/generateur.js`) ne renvoie PAS du texte brut : il renvoie

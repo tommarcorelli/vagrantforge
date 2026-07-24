@@ -308,6 +308,41 @@ def test_export_zip_contient_vagrantfile_et_readme():
     assert any(n.startswith("box/") for n in noms)  # dossier synced_folder du preset solo
 
 
+def test_export_zip_contient_gitignore_qui_exclut_vagrant():
+    config = obtenir_preset("solo")
+    vf = construire_vagrantfile(config)
+    archive = construire_zip_projet(config, vf)
+    import zipfile
+    import io
+    zf = zipfile.ZipFile(io.BytesIO(archive))
+    assert ".gitignore" in zf.namelist()
+    contenu = zf.read(".gitignore").decode("utf-8")
+    assert ".vagrant/" in contenu
+
+
+def test_readme_projet_liste_les_ports_exposes():
+    config = obtenir_preset("jenkins")
+    vf = construire_vagrantfile(config)
+    archive = construire_zip_projet(config, vf)
+    import zipfile
+    import io
+    zf = zipfile.ZipFile(io.BytesIO(archive))
+    readme = zf.read("README.md").decode("utf-8")
+    assert "## Accès (ports exposés)" in readme
+    assert "`localhost:8080`" in readme
+
+
+def test_readme_projet_sans_ports_exposes_omet_la_section_acces():
+    config = obtenir_preset("k3s")  # pas de forwarded_port dans ce preset
+    vf = construire_vagrantfile(config)
+    archive = construire_zip_projet(config, vf)
+    import zipfile
+    import io
+    zf = zipfile.ZipFile(io.BytesIO(archive))
+    readme = zf.read("README.md").decode("utf-8")
+    assert "## Accès" not in readme
+
+
 def test_export_zip_avec_inventaire():
     config = obtenir_preset("k3s")
     vf = construire_vagrantfile(config)
@@ -350,7 +385,7 @@ def test_export_zip_rejette_la_traversee_de_chemin():
     archive = construire_zip_projet(config, vf)
     noms = zipfile.ZipFile(io.BytesIO(archive)).namelist()
     assert not any(".." in n for n in noms)
-    assert noms == ["Vagrantfile", "README.md"]  # aucun .gitkeep ajouté, dossier rejeté
+    assert noms == ["Vagrantfile", "README.md", ".gitignore"]  # aucun .gitkeep ajouté, dossier rejeté
 
 
 def test_nouveaux_presets_presents():
@@ -397,6 +432,55 @@ def test_preset_duplicati_expose_le_port_8200():
 def test_preset_docker_swarm_a_trois_vms():
     config = obtenir_preset("docker-swarm")
     assert [vm["name"] for vm in config["vms"]] == ["swarm-manager", "swarm-worker1", "swarm-worker2"]
+
+
+def test_hosts_file_ajoute_une_entree_par_autre_vm_avec_ip():
+    config = {
+        "provider": "virtualbox",
+        "hosts_file": True,
+        "vms": [
+            {"name": "web", "box": "debian/bookworm64", "memory": 1024, "cpus": 1, "ip": "192.168.56.10"},
+            {"name": "db", "box": "debian/bookworm64", "memory": 1024, "cpus": 1, "ip": "192.168.56.11"},
+            {"name": "sans-ip", "box": "debian/bookworm64", "memory": 512, "cpus": 1},
+        ],
+    }
+    vf = construire_vagrantfile(config)
+    # web reçoit une entrée pour db (mais pas pour elle-même, ni pour sans-ip qui n'a pas d'IP)
+    bloc_web = vf.split('config.vm.define "web"')[1].split('config.vm.define "db"')[0]
+    assert "192.168.56.11" in bloc_web and "db" in bloc_web
+    assert "192.168.56.10\\tweb" not in bloc_web  # pas d'auto-référence
+    # sans-ip reçoit les deux entrées (elle a pas d'IP mais peut quand même résoudre les autres)
+    bloc_sans_ip = vf.split('config.vm.define "sans-ip"')[1]
+    assert "192.168.56.10" in bloc_sans_ip and "192.168.56.11" in bloc_sans_ip
+
+
+def test_hosts_file_desactive_par_defaut():
+    config = {
+        "provider": "virtualbox",
+        "vms": [
+            {"name": "web", "box": "debian/bookworm64", "memory": 1024, "cpus": 1, "ip": "192.168.56.10"},
+            {"name": "db", "box": "debian/bookworm64", "memory": 1024, "cpus": 1, "ip": "192.168.56.11"},
+        ],
+    }
+    vf = construire_vagrantfile(config)
+    assert "/etc/hosts" not in vf
+
+
+def test_hosts_file_windows_utilise_powershell():
+    config = {
+        "provider": "virtualbox",
+        "hosts_file": True,
+        "vms": [
+            {"name": "win-dc", "box": "gusztavvargadr/windows-server", "memory": 2048, "cpus": 1,
+             "ip": "192.168.56.90", "guest_os": "windows"},
+            {"name": "linux-client", "box": "debian/bookworm64", "memory": 1024, "cpus": 1,
+             "ip": "192.168.56.91"},
+        ],
+    }
+    vf = construire_vagrantfile(config)
+    bloc_win = vf.split('config.vm.define "win-dc"')[1].split('config.vm.define "linux-client"')[0]
+    assert "drivers\\\\etc\\\\hosts" in bloc_win or "drivers\\etc\\hosts" in bloc_win
+    assert "#ps1_sysnative" in bloc_win
 
 
 def test_preset_redis_cluster_a_trois_noeuds():

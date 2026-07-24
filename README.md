@@ -80,7 +80,10 @@ commenté et **validé**. Trois interfaces, **un seul cœur** partagé :
   `forge inventaire config.json [--format yaml]`, `POST
   /api/inventaire[?format=yaml]`, ou le bouton « Inventaire Ansible » côté
   web (Maj+clic pour le YAML).
-- **Export de projet complet en .zip** : Vagrantfile + `README.md` généré +
+- **Export de projet complet en .zip** : Vagrantfile + `.gitignore`
+  (exclut `.vagrant/`) + `README.md` généré (tableau des VMs **et**
+  des ports exposés, présentés sans présumer le protocole — `localhost:PORT`
+  neutre plutôt qu'un `http://` parfois faux pour du SSH/SMTP/JNLP/etc.) +
   arborescence des dossiers partagés (`.gitkeep`) + inventaire Ansible en
   option, prêt à dézipper et lancer. `forge exporter config.json -o
   projet.zip`, ou `POST /api/exporter`.
@@ -376,6 +379,7 @@ détecte automatiquement :
 {
   "provider": "virtualbox",
   "box_check_update": false,
+  "hosts_file": false,
   "vms": [
     {
       "name": "web",
@@ -403,6 +407,13 @@ détecte automatiquement :
 
 - `provider` (par VM) vide → hérite du provider global.
 - `provision.type` : `shell` | `ansible` | `none` (pour `ansible`, `script` = chemin du playbook).
+- `hosts_file` (global, optionnel, défaut `false`) : si `true`, chaque VM
+  ayant une `ip` reçoit un provisioner qui ajoute dans `/etc/hosts` (ou le
+  fichier hosts Windows, en PowerShell, pour les invités `guest_os:
+  "windows"`) une entrée par IP pour toutes les **autres** VMs de la
+  config. Permet de se joindre par nom (`ping web`, `curl http://db`)
+  sans serveur DNS. Idempotent (pas de doublon si on rejoue
+  `vagrant provision`).
 
 ---
 

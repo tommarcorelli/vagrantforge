@@ -46,6 +46,24 @@ function blocLocale(vn, locale, keymap){
   if(keymap){ s += `      echo "XKBLAYOUT=${keymap}" > /etc/default/keyboard\n      setupcon -k --force || true\n`; }
   return `    ${vn}.vm.provision "shell", inline: <<-SHELL\n${s}    SHELL\n`;
 }
+function blocHosts(vn, nom, vms, windows){
+  const autres = (vms||[]).filter(v=>v.name!==nom && v.ip);
+  if(!autres.length) return '';
+  let s = '';
+  if(windows){
+    s += "$chemin = 'C:\\Windows\\System32\\drivers\\etc\\hosts'\n";
+    autres.forEach(v=>{
+      s += `if (-not (Select-String -Path $chemin -Pattern '\\s${escRuby(v.name)}$' -Quiet)) { Add-Content -Path $chemin -Value '${escRuby(v.ip)}\\t${escRuby(v.name)}' }\n`;
+    });
+    s = '#ps1_sysnative\n' + s;
+  } else {
+    autres.forEach(v=>{
+      s += `grep -qxF '${escRuby(v.ip)}\\t${escRuby(v.name)}' /etc/hosts || echo -e '${escRuby(v.ip)}\\t${escRuby(v.name)}' >> /etc/hosts\n`;
+    });
+  }
+  const indente = s.split('\n').map(l=>'      '+l).join('\n');
+  return `    ${vn}.vm.provision "shell", inline: <<-SHELL\n${indente}\n    SHELL\n`;
+}
 
 /* Pont snake_case → camelCase pour les VMs.
  *
@@ -129,6 +147,8 @@ function buildVagrantfile(cfg){
     o += blocDisques(vn, prov, v.extraDisks);
 
     if(!windows) o += blocLocale(vn, v.locale, v.keymap);
+
+    if(cfg.hosts_file) o += blocHosts(vn, v.name, vms, windows);
 
     if(v.provisionType==='shell'){
       let full = v.provisionScript||'';

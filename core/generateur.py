@@ -230,7 +230,42 @@ def bloc_provision(var, provision, mdp_root="", windows=False):
     return ""
 
 
-def _lignes_vm(vm, provider_global):
+def bloc_hosts(nom, vms, windows=False):
+    """Bloc de provisioning ajoutant, dans /etc/hosts (ou le fichier hosts
+    Windows), une entrée par IP pour toutes les AUTRES VMs de la config.
+
+    Permet aux VMs de se joindre par nom (« ping web », « curl http://db »)
+    sans dépendre d'un serveur DNS. Idempotent : ne duplique pas une entrée
+    déjà présente, donc sans risque à rejouer via `vagrant provision`.
+    """
+    autres = [v for v in vms if v.get("name") != nom and v.get("ip")]
+    if not autres:
+        return ""
+    if windows:
+        lignes_ps = ["$chemin = 'C:\\Windows\\System32\\drivers\\etc\\hosts'"]
+        for v in autres:
+            ip = echapper(v["ip"])
+            hote = echapper(v["name"])
+            lignes_ps.append(
+                f"if (-not (Select-String -Path $chemin -Pattern '\\s{hote}$' -Quiet)) "
+                f"{{ Add-Content -Path $chemin -Value '{ip}\\t{hote}' }}"
+            )
+        script = "\n".join(lignes_ps) + "\n"
+    else:
+        lignes_sh = []
+        for v in autres:
+            ip = echapper(v["ip"])
+            hote = echapper(v["name"])
+            lignes_sh.append(
+                f"grep -qxF '{ip}\\t{hote}' /etc/hosts || echo -e '{ip}\\t{hote}' >> /etc/hosts"
+            )
+        script = "\n".join(lignes_sh) + "\n"
+    return bloc_provision(
+        nom_variable(nom), {"type": "shell", "script": script}, windows=windows
+    )
+
+
+def _lignes_vm(vm, provider_global, hosts_file=False, tous_les_vms=None):
     """Construit les lignes du bloc `config.vm.define ... end` d'une seule VM."""
     nom = vm.get("name", "vm")
     var = nom_variable(nom)
@@ -308,6 +343,11 @@ def _lignes_vm(vm, provider_global):
         if bloc_l:
             lignes.append(bloc_l.rstrip("\n"))
 
+    if hosts_file:
+        bloc_h = bloc_hosts(nom, tous_les_vms or [], windows=windows)
+        if bloc_h:
+            lignes.append(bloc_h.rstrip("\n"))
+
     bloc_prov = bloc_provision(var, vm.get("provision"), vm.get("root_password", ""), windows=windows)
     if bloc_prov:
         lignes.append(bloc_prov.rstrip("\n"))
@@ -345,7 +385,11 @@ def construire_sections(config):
     entete.append('Vagrant.configure("2") do |config|')
     entete.append(f"  config.vm.box_check_update = {verif_box}")
 
-    blocs_vm = ["\n".join(_lignes_vm(vm, provider_global)) for vm in vms]
+    hosts_file = bool(config.get("hosts_file", False))
+    blocs_vm = [
+        "\n".join(_lignes_vm(vm, provider_global, hosts_file=hosts_file, tous_les_vms=vms))
+        for vm in vms
+    ]
     corps_vms = "\n\n".join(blocs_vm)
     # Encadre le corps de lignes vides seulement s'il y a des VMs, pour que le
     # gabarit par défaut (qui colle $ENTETE-$VMS-$PIED) ne laisse pas de
